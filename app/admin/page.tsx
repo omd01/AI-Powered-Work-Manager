@@ -11,6 +11,7 @@ import MyTasksView from "@/components/my-tasks-view"
 import CreateProjectModal from "@/components/create-project-modal"
 import AdminAITaskAssignerModal from "@/components/admin-ai-task-assigner-modal"
 import TeamSettingsModal from "@/components/team-settings-modal"
+import FloatingAITaskAssigner from "@/components/floating-ai-task-assigner"
 
 export default function AdminPage() {
   const [currentView, setCurrentView] = useState<"dashboard" | "projects" | "tasks" | "members" | "my-tasks">(
@@ -115,6 +116,9 @@ export default function AdminPage() {
         <CreateProjectModal isOpen={isCreateProjectOpen} onClose={() => setIsCreateProjectOpen(false)} />
         <AdminAITaskAssignerModal isOpen={isAITaskAssignerOpen} onClose={() => setIsAITaskAssignerOpen(false)} />
         <TeamSettingsModal isOpen={isTeamSettingsOpen} onClose={() => setIsTeamSettingsOpen(false)} />
+
+        {/* Floating AI Task Assigner Button */}
+        <FloatingAITaskAssigner />
       </div>
     </OrganizationProvider>
   )

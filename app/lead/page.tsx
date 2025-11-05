@@ -6,15 +6,18 @@ import LeadProjectsView from "@/components/lead-projects-view"
 import TasksView from "@/components/tasks-view"
 import LeadMembersView from "@/components/lead-members-view"
 import LeadMyTasksView from "@/components/lead-my-tasks-view"
+import MyScheduleView from "@/components/my-schedule-view"
+import MySkillsView from "@/components/my-skills-view"
 import OrganizationSwitcher from "@/components/organization-switcher"
 import { OrganizationProvider } from "@/lib/organization-context"
 import AITaskAssignerModal from "@/components/ai-task-assigner-modal"
 import ManageProjectTeamModal from "@/components/manage-project-team-modal"
+import FloatingAITaskAssigner from "@/components/floating-ai-task-assigner"
 
 export default function LeadPage() {
-  const [currentView, setCurrentView] = useState<"dashboard" | "projects" | "tasks" | "members" | "my-tasks">(
-    "dashboard",
-  )
+  const [currentView, setCurrentView] = useState<
+    "dashboard" | "projects" | "tasks" | "members" | "my-tasks" | "my-schedule" | "my-skills"
+  >("dashboard")
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [isAITaskAssignerOpen, setIsAITaskAssignerOpen] = useState(false)
   const [isManageTeamOpen, setIsManageTeamOpen] = useState(false)
@@ -24,7 +27,9 @@ export default function LeadPage() {
     setCurrentView("tasks")
   }
 
-  const handleViewChange = (view: "dashboard" | "projects" | "tasks" | "members" | "my-tasks") => {
+  const handleViewChange = (
+    view: "dashboard" | "projects" | "tasks" | "members" | "my-tasks" | "my-schedule" | "my-skills",
+  ) => {
     setCurrentView(view)
   }
 
@@ -78,6 +83,26 @@ export default function LeadPage() {
             >
               Members
             </button>
+            <button
+              onClick={() => handleViewChange("my-schedule")}
+              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                currentView === "my-schedule"
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/20"
+              }`}
+            >
+              My Schedule
+            </button>
+            <button
+              onClick={() => handleViewChange("my-skills")}
+              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                currentView === "my-skills"
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/20"
+              }`}
+            >
+              My Skills
+            </button>
           </div>
 
           <div className="p-4 border-t border-sidebar-border space-y-2">
@@ -106,6 +131,8 @@ export default function LeadPage() {
           {currentView === "projects" && <LeadProjectsView onProjectSelect={handleProjectSelect} />}
           {currentView === "tasks" && selectedProject && <TasksView projectId={selectedProject} />}
           {currentView === "members" && <LeadMembersView onViewChange={handleViewChange} />}
+          {currentView === "my-schedule" && <MyScheduleView />}
+          {currentView === "my-skills" && <MySkillsView />}
         </main>
 
         {/* AI Task Assigner Modal */}
@@ -113,6 +140,9 @@ export default function LeadPage() {
 
         {/* Manage Project Team Modal */}
         <ManageProjectTeamModal isOpen={isManageTeamOpen} onClose={() => setIsManageTeamOpen(false)} />
+
+        {/* Floating AI Task Assigner Button */}
+        <FloatingAITaskAssigner />
       </div>
     </OrganizationProvider>
   )

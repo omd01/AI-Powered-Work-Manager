@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Search, AlertCircle } from "lucide-react"
+import { Search, AlertCircle, GripVertical } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 
@@ -18,9 +18,10 @@ interface Task {
 export default function MemberMyTasksView() {
   const [searchQuery, setSearchQuery] = useState("")
   const [draggedTask, setDraggedTask] = useState<string | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
 
-  // Mock tasks assigned to Member
-  const allTasks: Task[] = [
+  // Mock tasks assigned to Member - using state to allow updates
+  const [allTasks, setAllTasks] = useState<Task[]>([
     {
       id: "1",
       title: "Design homepage mockups",
@@ -75,7 +76,7 @@ export default function MemberMyTasksView() {
       dueDate: "2025-11-28",
       project: "Website Redesign",
     },
-  ]
+  ])
 
   const filteredTasks = allTasks.filter(
     (task) =>
@@ -89,20 +90,37 @@ export default function MemberMyTasksView() {
     Done: filteredTasks.filter((t) => t.status === "Done"),
   }
 
-  const handleDragStart = (taskId: string) => {
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
     setDraggedTask(taskId)
+    e.dataTransfer.effectAllowed = "move"
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent, columnStatus: string) => {
     e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    setDragOverColumn(columnStatus)
   }
 
-  const handleDrop = (newStatus: "Todo" | "In Progress" | "Done") => {
+  const handleDragLeave = () => {
+    setDragOverColumn(null)
+  }
+
+  const handleDrop = (e: React.DragEvent, newStatus: "Todo" | "In Progress" | "Done") => {
+    e.preventDefault()
+
     if (draggedTask) {
-      // Here you would update the task status in the backend
-      console.log(`Moving task ${draggedTask} to ${newStatus}`)
+      // Update the task status
+      setAllTasks((prevTasks) =>
+        prevTasks.map((task) => (task.id === draggedTask ? { ...task, status: newStatus } : task)),
+      )
       setDraggedTask(null)
+      setDragOverColumn(null)
     }
+  }
+
+  const handleDragEnd = () => {
+    setDraggedTask(null)
+    setDragOverColumn(null)
   }
 
   const getPriorityColor = (priority: string) => {
@@ -146,9 +164,12 @@ export default function MemberMyTasksView() {
         {(["Todo", "In Progress", "Done"] as const).map((status) => (
           <div
             key={status}
-            className="space-y-4"
-            onDragOver={handleDragOver}
-            onDrop={() => handleDrop(status)}
+            className={`space-y-4 p-4 rounded-lg border-2 transition-colors ${
+              dragOverColumn === status ? "border-primary bg-primary/5" : "border-transparent bg-muted/20"
+            }`}
+            onDragOver={(e) => handleDragOver(e, status)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, status)}
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-foreground text-sm">{status}</h3>
@@ -162,14 +183,20 @@ export default function MemberMyTasksView() {
                 <Card
                   key={task.id}
                   draggable
-                  onDragStart={() => handleDragStart(task.id)}
-                  className="cursor-move hover:shadow-md transition-shadow hover:border-primary/50"
+                  onDragStart={(e) => handleDragStart(e, task.id)}
+                  onDragEnd={handleDragEnd}
+                  className={`cursor-move hover:shadow-md transition-all hover:border-primary/50 ${
+                    draggedTask === task.id ? "opacity-50 scale-95" : ""
+                  }`}
                 >
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <h4 className="font-medium text-foreground text-sm leading-tight mb-1">{task.title}</h4>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
+                      <div className="flex items-center gap-2 flex-1">
+                        <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-foreground text-sm leading-tight mb-1">{task.title}</h4>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
+                        </div>
                       </div>
                       {task.priority === "Critical" && (
                         <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />

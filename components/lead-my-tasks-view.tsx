@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Filter, Search, CheckCircle2, Circle, AlertCircle, ChevronDown } from "lucide-react"
+import { Filter, Search, CheckCircle2, Circle, AlertCircle, ChevronDown, RefreshCw, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -25,9 +25,11 @@ export default function LeadMyTasksView() {
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
   const [filterPriority, setFilterPriority] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<"dueDate" | "priority" | "status">("dueDate")
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
+  const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null)
 
-  // Tasks assigned to Lead (e.g., review tasks)
-  const allTasks: Task[] = [
+  // Tasks assigned to Lead (e.g., review tasks) - using state to allow updates
+  const [allTasks, setAllTasks] = useState<Task[]>([
     {
       id: "1",
       title: "Review Alex's code",
@@ -80,7 +82,62 @@ export default function LeadMyTasksView() {
       project: "Website Redesign",
       subtasks: [],
     },
-  ]
+  ])
+
+  // Function to update task status
+  const handleStatusChange = (taskId: string, newStatus: "Todo" | "Planning" | "In Progress" | "Done") => {
+    setAllTasks((prevTasks) =>
+      prevTasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)),
+    )
+  }
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    setDraggedTaskId(taskId)
+    e.dataTransfer.effectAllowed = "move"
+  }
+
+  const handleDragOver = (e: React.DragEvent, taskId: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    setDragOverTaskId(taskId)
+  }
+
+  const handleDragLeave = () => {
+    setDragOverTaskId(null)
+  }
+
+  const handleDrop = (e: React.DragEvent, targetTaskId: string) => {
+    e.preventDefault()
+
+    if (!draggedTaskId || draggedTaskId === targetTaskId) {
+      setDraggedTaskId(null)
+      setDragOverTaskId(null)
+      return
+    }
+
+    setAllTasks((prevTasks) => {
+      const tasks = [...prevTasks]
+      const draggedIndex = tasks.findIndex((t) => t.id === draggedTaskId)
+      const targetIndex = tasks.findIndex((t) => t.id === targetTaskId)
+
+      if (draggedIndex === -1 || targetIndex === -1) return tasks
+
+      // Remove dragged task and insert at target position
+      const [draggedTask] = tasks.splice(draggedIndex, 1)
+      tasks.splice(targetIndex, 0, draggedTask)
+
+      return tasks
+    })
+
+    setDraggedTaskId(null)
+    setDragOverTaskId(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null)
+    setDragOverTaskId(null)
+  }
 
   // Filter and sort tasks
   const filteredTasks = useMemo(() => {
@@ -281,23 +338,70 @@ export default function LeadMyTasksView() {
           filteredTasks.map((task) => (
             <Card
               key={task.id}
-              className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/50"
+              draggable
+              onDragStart={(e) => handleDragStart(e, task.id)}
+              onDragOver={(e) => handleDragOver(e, task.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, task.id)}
+              onDragEnd={handleDragEnd}
+              className={`cursor-move hover:shadow-md transition-all hover:border-primary/50 ${
+                draggedTaskId === task.id ? "opacity-50" : ""
+              } ${dragOverTaskId === task.id ? "border-primary border-2" : ""}`}
               onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}
             >
               <CardContent className="p-4">
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-medium text-foreground">{task.title}</h3>
-                        {getPriorityIcon(task.priority)}
+                    <div className="flex items-center gap-2 flex-1">
+                      <GripVertical
+                        className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing"
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-medium text-foreground">{task.title}</h3>
+                          {getPriorityIcon(task.priority)}
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-1">{task.description}</p>
                       </div>
-                      <p className="text-sm text-muted-foreground line-clamp-1">{task.description}</p>
                     </div>
-                    <div
-                      className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusColor(task.status)}`}
-                    >
-                      {task.status}
+                    <div className="flex items-center gap-2">
+                      {/* Change Status Dropdown */}
+                      <div className="relative group">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                          }}
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          <span className="text-xs">Change Status</span>
+                        </Button>
+                        <div className="absolute right-0 hidden group-hover:flex flex-col bg-popover border border-border rounded-lg shadow-lg mt-1 z-20 min-w-[140px]">
+                          {["Todo", "Planning", "In Progress", "Done"].map((status) => (
+                            <button
+                              key={status}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleStatusChange(task.id, status as "Todo" | "Planning" | "In Progress" | "Done")
+                              }}
+                              className={`px-4 py-2 text-left hover:bg-muted/50 text-sm border-b border-border last:border-0 ${
+                                task.status === status ? "bg-muted font-medium" : ""
+                              }`}
+                            >
+                              {status}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusColor(task.status)}`}
+                      >
+                        {task.status}
+                      </div>
                     </div>
                   </div>
 
