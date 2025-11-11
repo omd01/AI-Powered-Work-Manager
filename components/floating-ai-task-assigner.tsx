@@ -4,16 +4,20 @@ import { useState } from "react"
 import { Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import AITaskAssignerModal from "@/components/ai-task-assigner-modal"
+import AdminAITaskAssignerSleek from "@/components/admin-ai-task-assigner-sleek"
 import { useOrganization } from "@/lib/organization-context"
+import { useAuth } from "@/lib/auth-context"
 
 export default function FloatingAITaskAssigner() {
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const { currentOrganization, getOrganizationMembers } = useOrganization()
+  const { currentOrganization, isLoading } = useOrganization()
+  const { user } = useAuth()
 
-  // Get current user role (using first member for demo purposes)
-  // In a real app, you would get the actual logged-in user
-  const members = getOrganizationMembers(currentOrganization.id)
-  const currentUserRole = members[0]?.role // For demo, using first member
+  // Don't render if organization data is not loaded yet
+  if (isLoading || !currentOrganization || !user) return null
+
+  // Get current user role from auth context
+  const currentUserRole = user.role
 
   // Only show for Admin and Lead roles
   const canAccessAITaskAssigner = currentUserRole === "Admin" || currentUserRole === "Lead"
@@ -30,7 +34,12 @@ export default function FloatingAITaskAssigner() {
         <span className="font-medium">AI Task Assigner</span>
       </Button>
 
-      <AITaskAssignerModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      {/* Admin uses the sleek delegating workflow, Lead uses the team management workflow */}
+      {currentUserRole === "Admin" ? (
+        <AdminAITaskAssignerSleek isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      ) : (
+        <AITaskAssignerModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      )}
     </>
   )
 }

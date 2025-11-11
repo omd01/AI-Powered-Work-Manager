@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Plus, Filter, Search, CheckCircle2, Circle, AlertCircle, ChevronDown, RefreshCw } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
+import { Plus, Filter, Search, CheckCircle2, Circle, AlertCircle, ChevronDown, RefreshCw, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useOrganization } from "@/lib/organization-context"
+import { useAuth } from "@/lib/auth-context"
+import CreateTaskModal from "./create-task-modal"
 
 interface Task {
   id: string
@@ -21,101 +23,110 @@ interface Task {
 }
 
 export default function MyTasksView() {
-  const { currentOrganization } = useOrganization()
+  const { currentOrganization, isLoading: orgLoading } = useOrganization()
+  const { user } = useAuth()
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
   const [filterPriority, setFilterPriority] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<"dueDate" | "priority" | "status">("dueDate")
+  const [allTasks, setAllTasks] = useState<Task[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
 
-  // Mock tasks assigned to current user - using state to allow updates
-  const [allTasks, setAllTasks] = useState<Task[]>([
-    {
-      id: "1",
-      title: "Design homepage mockups",
-      description: "Create high-fidelity mockups for the new homepage design",
-      assignee: "Admin",
-      priority: "High",
-      status: "In Progress",
-      dueDate: "2025-12-10",
-      skills: ["UI Design", "Figma"],
-      project: "Website Redesign",
-      subtasks: [
-        { id: "1-1", title: "Mobile layout", completed: true },
-        { id: "1-2", title: "Desktop layout", completed: false },
-        { id: "1-3", title: "Component library", completed: false },
-      ],
-    },
-    {
-      id: "2",
-      title: "Set up database schema",
-      description: "Create PostgreSQL schema for user management and projects",
-      assignee: "Admin",
-      priority: "Critical",
-      status: "In Progress",
-      dueDate: "2025-12-05",
-      skills: ["Database", "PostgreSQL"],
-      project: "Database Migration",
-      subtasks: [
-        { id: "2-1", title: "Users table", completed: true },
-        { id: "2-2", title: "Projects table", completed: true },
-      ],
-    },
-    {
-      id: "3",
-      title: "Implement authentication",
-      description: "Add user signup and login functionality",
-      assignee: "Admin",
-      priority: "High",
-      status: "Planning",
-      dueDate: "2025-12-08",
-      skills: ["Backend", "Security"],
-      project: "Mobile App MVP",
-      subtasks: [],
-    },
-    {
-      id: "4",
-      title: "Write API documentation",
-      description: "Document all REST endpoints with examples",
-      assignee: "Admin",
-      priority: "Medium",
-      status: "Todo",
-      dueDate: "2025-12-12",
-      skills: ["Documentation", "API"],
-      project: "Backend Infrastructure",
-      subtasks: [],
-    },
-    {
-      id: "5",
-      title: "Code review for payment module",
-      description: "Review and approve the payment processing implementation",
-      assignee: "Admin",
-      priority: "High",
-      status: "Todo",
-      dueDate: "2025-12-07",
-      skills: ["Code Review", "Security"],
-      project: "Website Redesign",
-      subtasks: [],
-    },
-    {
-      id: "6",
-      title: "Optimize database queries",
-      description: "Improve query performance for user dashboard",
-      assignee: "Admin",
-      priority: "Medium",
-      status: "Done",
-      dueDate: "2025-12-01",
-      skills: ["Database", "Performance"],
-      project: "Database Migration",
-      subtasks: [],
-    },
-  ])
+  // Fetch tasks from API
+  const fetchTasks = async () => {
+    if (!user || !currentOrganization) return
+
+    try {
+      setIsLoading(true)
+      setError(null)
+      const token = localStorage.getItem("token")
+      const response = await fetch("/api/tasks/my-tasks", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.tasks) {
+        setAllTasks(data.tasks)
+      } else {
+        setError(data.error || "Failed to fetch tasks")
+      }
+    } catch (error) {
+      console.error("Error fetching tasks:", error)
+      setError("Failed to fetch tasks")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchTasks()
+  }, [user, currentOrganization])
 
   // Function to update task status
-  const handleStatusChange = (taskId: string, newStatus: "Todo" | "Planning" | "In Progress" | "Done") => {
-    setAllTasks((prevTasks) =>
-      prevTasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)),
-    )
+  const handleStatusChange = async (taskId: string, newStatus: "Todo" | "Planning" | "In Progress" | "Done") => {
+    try {
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/tasks/${taskId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Update local state
+        setAllTasks((prevTasks) =>
+          prevTasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)),
+        )
+      } else {
+        alert(data.error || "Failed to update task status")
+      }
+    } catch (error) {
+      console.error("Error updating task status:", error)
+      alert("Failed to update task status")
+    }
+  }
+
+  // Function to delete task (Admin only)
+  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
+    if (!confirm(`Are you sure you want to delete "${taskTitle}"? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Remove task from local state
+        setAllTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId))
+      } else {
+        alert(data.error || "Failed to delete task")
+      }
+    } catch (error) {
+      console.error("Error deleting task:", error)
+      alert("Failed to delete task")
+    }
   }
 
   // Filter and sort tasks
@@ -158,7 +169,7 @@ export default function MyTasksView() {
     }
 
     return sortedResult
-  }, [searchQuery, filterStatus, filterPriority, sortBy])
+  }, [allTasks, searchQuery, filterStatus, filterPriority, sortBy])
 
   const getPriorityIcon = (priority: string) => {
     if (priority === "Critical") return <AlertCircle className="w-4 h-4 text-destructive" />
@@ -201,6 +212,30 @@ export default function MyTasksView() {
     inProgress: allTasks.filter((t) => t.status === "In Progress").length,
   }
 
+  // Show loading state
+  if (isLoading || orgLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Loading tasks...</p>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="text-center py-12">
+          <p className="text-destructive mb-2">Error: {error}</p>
+          <Button onClick={fetchTasks} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-8">
       {/* Header */}
@@ -212,10 +247,19 @@ export default function MyTasksView() {
               {taskStats.total} tasks • {taskStats.completed} completed • {taskStats.inProgress} in progress
             </p>
           </div>
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            <Plus className="w-4 h-4 mr-2" />
-            New Task
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={fetchTasks} variant="outline" size="sm">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+            <Button
+              onClick={() => setIsCreateTaskOpen(true)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Task
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -366,6 +410,21 @@ export default function MyTasksView() {
                         </div>
                       </div>
 
+                      {/* Delete Button (Admin only) */}
+                      {user?.role === "Admin" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteTask(task.id, task.title)
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
+
                       <div
                         className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusColor(task.status)}`}
                       >
@@ -432,15 +491,9 @@ export default function MyTasksView() {
                         <p className="text-xs font-medium text-muted-foreground mb-1">Full Description</p>
                         <p className="text-sm text-foreground">{task.description}</p>
                       </div>
-                      <div className="flex gap-4">
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1">Assigned to</p>
-                          <p className="text-sm text-foreground">{task.assignee}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1">Project</p>
-                          <p className="text-sm text-foreground">{task.project}</p>
-                        </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Project</p>
+                        <p className="text-sm text-foreground">{task.project}</p>
                       </div>
                     </div>
                   )}
@@ -455,6 +508,15 @@ export default function MyTasksView() {
           </div>
         )}
       </div>
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={isCreateTaskOpen}
+        onClose={() => {
+          setIsCreateTaskOpen(false)
+          fetchTasks() // Refresh tasks after creating new one
+        }}
+      />
     </div>
   )
 }

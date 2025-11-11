@@ -4,6 +4,8 @@ import { ArrowRight, Users, Briefcase, CheckSquare, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useOrganization } from "@/lib/organization-context"
+import { useAuth } from "@/lib/auth-context"
+import { useState, useEffect } from "react"
 
 interface LeadDashboardProps {
   onViewChange: (view: "dashboard" | "projects" | "tasks" | "members" | "my-tasks") => void
@@ -11,53 +13,62 @@ interface LeadDashboardProps {
   onOpenManageTeam: () => void
 }
 
-// Mock data for Lead's projects and team
-const LEAD_PROJECTS = [
-  {
-    id: "1",
-    name: "Mobile App MVP",
-    members: 8,
-    status: "In Progress",
-    progress: 45,
-    tasks: 32,
-  },
-  {
-    id: "2",
-    name: "Website Redesign",
-    members: 5,
-    status: "In Progress",
-    progress: 65,
-    tasks: 24,
-  },
-]
-
-const LEAD_TEAM_MEMBERS = [
-  { name: "Emma Wilson", role: "Member", skills: ["Frontend Development", "React", "CSS"] },
-  { name: "James Park", role: "Member", skills: ["Mobile Development", "React Native", "iOS"] },
-  { name: "David Kim", role: "Member", skills: ["Backend Development", "Node.js"] },
-]
+interface Project {
+  id: string
+  name: string
+  members: number
+  status: string
+  progress: number
+  tasks: number
+}
 
 export default function LeadDashboard({
   onViewChange,
   onOpenAITaskAssigner,
   onOpenManageTeam,
 }: LeadDashboardProps) {
-  const { currentOrganization } = useOrganization()
+  const { currentOrganization, members } = useOrganization()
+  const { user } = useAuth()
+  const [leadProjects, setLeadProjects] = useState<Project[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const activeProjects = LEAD_PROJECTS.length
-  const teamMembers = LEAD_TEAM_MEMBERS.length
-  const pendingTasks = LEAD_PROJECTS.reduce((sum, p) => sum + p.tasks, 0)
+  // Fetch projects led by the current user
+  useEffect(() => {
+    const fetchLeadProjects = async () => {
+      if (!user) return
+
+      try {
+        setIsLoading(true)
+        const token = localStorage.getItem("token")
+        const response = await fetch("/api/projects/lead", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: "include",
+        })
+
+        const data = await response.json()
+
+        if (data.success) {
+          setLeadProjects(data.projects)
+        }
+      } catch (error) {
+        console.error("Error fetching lead projects:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchLeadProjects()
+  }, [user])
+
+  const activeProjects = leadProjects.length
+  const teamMembers = members.length
+  const pendingTasks = leadProjects.reduce((sum, p) => sum + p.tasks, 0)
 
   return (
     <div className="p-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold text-foreground mb-2">
-          Welcome back, Lead
-          {currentOrganization && <span className="text-primary"> — {currentOrganization.name}</span>}
-        </h2>
-        <p className="text-muted-foreground">Manage your projects and assign tasks to your team with AI</p>
-      </div>
+    
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -120,26 +131,36 @@ export default function LeadDashboard({
               <CardDescription>Projects you are leading</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {LEAD_PROJECTS.map((project) => (
-                  <div
-                    key={project.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                    onClick={() => onViewChange("projects")}
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{project.name}</p>
-                      <p className="text-sm text-muted-foreground">{project.members} team members</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="w-24 h-2 bg-muted rounded-full overflow-hidden mb-1">
-                        <div className="h-full bg-primary transition-all" style={{ width: `${project.progress}%` }} />
+              {isLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Loading projects...</p>
+                </div>
+              ) : leadProjects.length > 0 ? (
+                <div className="space-y-4">
+                  {leadProjects.map((project) => (
+                    <div
+                      key={project.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                      onClick={() => onViewChange("projects")}
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">{project.name}</p>
+                        <p className="text-sm text-muted-foreground">{project.members} team members • {project.tasks} tasks</p>
                       </div>
-                      <p className="text-xs text-muted-foreground">{project.progress}%</p>
+                      <div className="text-right">
+                        <div className="w-24 h-2 bg-muted rounded-full overflow-hidden mb-1">
+                          <div className="h-full bg-primary transition-all" style={{ width: `${project.progress}%` }} />
+                        </div>
+                        <p className="text-xs text-muted-foreground">{project.progress}%</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No projects found. You are not leading any projects yet.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -172,28 +193,7 @@ export default function LeadDashboard({
             </CardContent>
           </Card>
 
-          {/* AI Feature Highlight */}
-          <Card className="mt-4 border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Zap className="w-4 h-4 text-primary" />
-                AI Task Assigner
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Describe what you need in natural language, and AI will automatically break it down, prioritize, and
-                assign tasks to the best team members.
-              </p>
-              <Button
-                size="sm"
-                className="w-full bg-primary hover:bg-primary/90"
-                onClick={onOpenAITaskAssigner}
-              >
-                Try Now
-              </Button>
-            </CardContent>
-          </Card>
+        
         </div>
       </div>
     </div>

@@ -1,10 +1,13 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Filter, Search, CheckCircle2, Circle, AlertCircle, ChevronDown, RefreshCw, GripVertical } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
+import { Plus, Filter, Search, CheckCircle2, Circle, AlertCircle, ChevronDown, RefreshCw, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { useOrganization } from "@/lib/organization-context"
+import { useAuth } from "@/lib/auth-context"
+import CreateTaskModal from "./create-task-modal"
 
 interface Task {
   id: string
@@ -20,123 +23,110 @@ interface Task {
 }
 
 export default function LeadMyTasksView() {
+  const { currentOrganization, isLoading: orgLoading } = useOrganization()
+  const { user } = useAuth()
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
   const [filterPriority, setFilterPriority] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<"dueDate" | "priority" | "status">("dueDate")
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
-  const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null)
+  const [allTasks, setAllTasks] = useState<Task[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
 
-  // Tasks assigned to Lead (e.g., review tasks) - using state to allow updates
-  const [allTasks, setAllTasks] = useState<Task[]>([
-    {
-      id: "1",
-      title: "Review Alex's code",
-      description: "Review the pull request for the authentication module",
-      assignee: "Lead",
-      priority: "High",
-      status: "In Progress",
-      dueDate: "2025-12-10",
-      skills: ["Code Review", "Security"],
-      project: "Mobile App MVP",
-      subtasks: [
-        { id: "1-1", title: "Check security best practices", completed: true },
-        { id: "1-2", title: "Verify error handling", completed: false },
-        { id: "1-3", title: "Test edge cases", completed: false },
-      ],
-    },
-    {
-      id: "2",
-      title: "Approve database schema",
-      description: "Review and approve the proposed database schema changes",
-      assignee: "Lead",
-      priority: "Critical",
-      status: "Todo",
-      dueDate: "2025-12-05",
-      skills: ["Database", "Architecture"],
-      project: "Mobile App MVP",
-      subtasks: [],
-    },
-    {
-      id: "3",
-      title: "Plan sprint goals",
-      description: "Define and prioritize sprint goals for the next iteration",
-      assignee: "Lead",
-      priority: "High",
-      status: "Planning",
-      dueDate: "2025-12-08",
-      skills: ["Planning", "Project Management"],
-      project: "Website Redesign",
-      subtasks: [],
-    },
-    {
-      id: "4",
-      title: "Review UI mockups",
-      description: "Review and provide feedback on the new homepage designs",
-      assignee: "Lead",
-      priority: "Medium",
-      status: "Todo",
-      dueDate: "2025-12-12",
-      skills: ["UI/UX", "Design Review"],
-      project: "Website Redesign",
-      subtasks: [],
-    },
-  ])
+  // Fetch tasks from API
+  const fetchTasks = async () => {
+    if (!user || !currentOrganization) return
+
+    try {
+      setIsLoading(true)
+      setError(null)
+      const token = localStorage.getItem("token")
+      const response = await fetch("/api/tasks/my-tasks", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.tasks) {
+        setAllTasks(data.tasks)
+      } else {
+        setError(data.error || "Failed to fetch tasks")
+      }
+    } catch (error) {
+      console.error("Error fetching tasks:", error)
+      setError("Failed to fetch tasks")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchTasks()
+  }, [user, currentOrganization])
 
   // Function to update task status
-  const handleStatusChange = (taskId: string, newStatus: "Todo" | "Planning" | "In Progress" | "Done") => {
-    setAllTasks((prevTasks) =>
-      prevTasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)),
-    )
+  const handleStatusChange = async (taskId: string, newStatus: "Todo" | "Planning" | "In Progress" | "Done") => {
+    try {
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/tasks/${taskId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Update local state
+        setAllTasks((prevTasks) =>
+          prevTasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)),
+        )
+      } else {
+        alert(data.error || "Failed to update task status")
+      }
+    } catch (error) {
+      console.error("Error updating task status:", error)
+      alert("Failed to update task status")
+    }
   }
 
-  // Drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, taskId: string) => {
-    setDraggedTaskId(taskId)
-    e.dataTransfer.effectAllowed = "move"
-  }
-
-  const handleDragOver = (e: React.DragEvent, taskId: string) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = "move"
-    setDragOverTaskId(taskId)
-  }
-
-  const handleDragLeave = () => {
-    setDragOverTaskId(null)
-  }
-
-  const handleDrop = (e: React.DragEvent, targetTaskId: string) => {
-    e.preventDefault()
-
-    if (!draggedTaskId || draggedTaskId === targetTaskId) {
-      setDraggedTaskId(null)
-      setDragOverTaskId(null)
+  // Function to delete task (Admin only)
+  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
+    if (!confirm(`Are you sure you want to delete "${taskTitle}"? This action cannot be undone.`)) {
       return
     }
 
-    setAllTasks((prevTasks) => {
-      const tasks = [...prevTasks]
-      const draggedIndex = tasks.findIndex((t) => t.id === draggedTaskId)
-      const targetIndex = tasks.findIndex((t) => t.id === targetTaskId)
+    try {
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
 
-      if (draggedIndex === -1 || targetIndex === -1) return tasks
+      const data = await response.json()
 
-      // Remove dragged task and insert at target position
-      const [draggedTask] = tasks.splice(draggedIndex, 1)
-      tasks.splice(targetIndex, 0, draggedTask)
-
-      return tasks
-    })
-
-    setDraggedTaskId(null)
-    setDragOverTaskId(null)
-  }
-
-  const handleDragEnd = () => {
-    setDraggedTaskId(null)
-    setDragOverTaskId(null)
+      if (data.success) {
+        // Remove task from local state
+        setAllTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId))
+      } else {
+        alert(data.error || "Failed to delete task")
+      }
+    } catch (error) {
+      console.error("Error deleting task:", error)
+      alert("Failed to delete task")
+    }
   }
 
   // Filter and sort tasks
@@ -179,7 +169,7 @@ export default function LeadMyTasksView() {
     }
 
     return sortedResult
-  }, [searchQuery, filterStatus, filterPriority, sortBy])
+  }, [allTasks, searchQuery, filterStatus, filterPriority, sortBy])
 
   const getPriorityIcon = (priority: string) => {
     if (priority === "Critical") return <AlertCircle className="w-4 h-4 text-destructive" />
@@ -222,6 +212,30 @@ export default function LeadMyTasksView() {
     inProgress: allTasks.filter((t) => t.status === "In Progress").length,
   }
 
+  // Show loading state
+  if (isLoading || orgLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Loading tasks...</p>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="text-center py-12">
+          <p className="text-destructive mb-2">Error: {error}</p>
+          <Button onClick={fetchTasks} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-8">
       {/* Header */}
@@ -232,6 +246,19 @@ export default function LeadMyTasksView() {
             <p className="text-muted-foreground">
               {taskStats.total} tasks • {taskStats.completed} completed • {taskStats.inProgress} in progress
             </p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={fetchTasks} variant="outline" size="sm">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+            <Button
+              onClick={() => setIsCreateTaskOpen(true)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Task
+            </Button>
           </div>
         </div>
       </div>
@@ -338,32 +365,18 @@ export default function LeadMyTasksView() {
           filteredTasks.map((task) => (
             <Card
               key={task.id}
-              draggable
-              onDragStart={(e) => handleDragStart(e, task.id)}
-              onDragOver={(e) => handleDragOver(e, task.id)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, task.id)}
-              onDragEnd={handleDragEnd}
-              className={`cursor-move hover:shadow-md transition-all hover:border-primary/50 ${
-                draggedTaskId === task.id ? "opacity-50" : ""
-              } ${dragOverTaskId === task.id ? "border-primary border-2" : ""}`}
+              className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/50"
               onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}
             >
               <CardContent className="p-4">
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 flex-1">
-                      <GripVertical
-                        className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing"
-                        onMouseDown={(e) => e.stopPropagation()}
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium text-foreground">{task.title}</h3>
-                          {getPriorityIcon(task.priority)}
-                        </div>
-                        <p className="text-sm text-muted-foreground line-clamp-1">{task.description}</p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-medium text-foreground">{task.title}</h3>
+                        {getPriorityIcon(task.priority)}
                       </div>
+                      <p className="text-sm text-muted-foreground line-clamp-1">{task.description}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {/* Change Status Dropdown */}
@@ -396,6 +409,21 @@ export default function LeadMyTasksView() {
                           ))}
                         </div>
                       </div>
+
+                      {/* Delete Button (Admin and Lead) */}
+                      {(user?.role === "Admin" || user?.role === "Lead") && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteTask(task.id, task.title)
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
 
                       <div
                         className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusColor(task.status)}`}
@@ -463,15 +491,9 @@ export default function LeadMyTasksView() {
                         <p className="text-xs font-medium text-muted-foreground mb-1">Full Description</p>
                         <p className="text-sm text-foreground">{task.description}</p>
                       </div>
-                      <div className="flex gap-4">
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1">Assigned to</p>
-                          <p className="text-sm text-foreground">{task.assignee}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1">Project</p>
-                          <p className="text-sm text-foreground">{task.project}</p>
-                        </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Project</p>
+                        <p className="text-sm text-foreground">{task.project}</p>
                       </div>
                     </div>
                   )}
@@ -486,7 +508,15 @@ export default function LeadMyTasksView() {
           </div>
         )}
       </div>
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={isCreateTaskOpen}
+        onClose={() => {
+          setIsCreateTaskOpen(false)
+          fetchTasks() // Refresh tasks after creating new one
+        }}
+      />
     </div>
   )
 }
-

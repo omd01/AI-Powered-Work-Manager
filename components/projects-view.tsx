@@ -1,69 +1,82 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, Search, Filter, MoreVertical } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Plus, Search, Filter, MoreVertical, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import CreateProjectModal from "./create-project-modal"
+import { useOrganization } from "@/lib/organization-context"
+import { useAuth } from "@/lib/auth-context"
+
+interface Project {
+  id: string
+  name: string
+  description: string
+  lead: string
+  leadEmail: string
+  members: number
+  status: string
+  progress: number
+  tasks: number
+  dueDate: string
+  priority: string
+}
 
 interface ProjectsViewProps {
   onProjectSelect: (projectId: string) => void
 }
 
 export default function ProjectsView({ onProjectSelect }: ProjectsViewProps) {
+  const { currentOrganization, isLoading: orgLoading } = useOrganization()
+  const { user } = useAuth()
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
-  const projects = [
-    {
-      id: "1",
-      name: "Website Redesign",
-      description: "Complete overhaul of the marketing website",
-      lead: "Sarah Chen",
-      members: 5,
-      status: "In Progress",
-      progress: 65,
-      tasks: 24,
-      dueDate: "2025-12-15",
-      priority: "High",
-    },
-    {
-      id: "2",
-      name: "Mobile App MVP",
-      description: "Build MVP for the new mobile application",
-      lead: "Marcus Johnson",
-      members: 8,
-      status: "In Progress",
-      progress: 45,
-      tasks: 32,
-      dueDate: "2026-01-30",
-      priority: "Critical",
-    },
-    {
-      id: "3",
-      name: "Database Migration",
-      description: "Migrate from legacy system to PostgreSQL",
-      lead: "Alex Rivera",
-      members: 3,
-      status: "In Progress",
-      progress: 80,
-      tasks: 18,
-      dueDate: "2025-12-01",
-      priority: "High",
-    },
-    {
-      id: "4",
-      name: "Security Audit",
-      description: "Complete security assessment and compliance check",
-      lead: "Jamie Lee",
-      members: 4,
-      status: "Planning",
-      progress: 10,
-      tasks: 14,
-      dueDate: "2026-02-15",
-      priority: "Medium",
-    },
-  ]
+  // Fetch projects from API
+  const fetchProjects = async () => {
+    if (!user || !currentOrganization) return
+
+    try {
+      setIsLoading(true)
+      setError(null)
+      const token = localStorage.getItem("token")
+      const response = await fetch("/api/projects", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.projects) {
+        setProjects(data.projects)
+      } else {
+        setError(data.error || "Failed to fetch projects")
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error)
+      setError("Failed to fetch projects")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchProjects()
+  }, [user, currentOrganization])
+
+  // Filter projects based on search query
+  const filteredProjects = projects.filter(
+    (project) =>
+      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.lead.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -78,38 +91,72 @@ export default function ProjectsView({ onProjectSelect }: ProjectsViewProps) {
     }
   }
 
+  // Show loading state
+  if (isLoading || orgLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Loading projects...</p>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="text-center py-12">
+          <p className="text-destructive mb-2">Error: {error}</p>
+          <Button onClick={fetchProjects} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-8">
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-foreground mb-2">Projects</h2>
-          <p className="text-muted-foreground">Manage and organize your team projects</p>
+          <p className="text-muted-foreground">
+            Manage and organize your team projects • {projects.length} total
+          </p>
         </div>
-        <Button
-          onClick={() => setIsCreateProjectOpen(true)}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New Project
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={fetchProjects} variant="outline" size="sm">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+          <Button
+            onClick={() => setIsCreateProjectOpen(true)}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Project
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}
       <div className="flex gap-4 mb-6">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search projects..." className="pl-10" />
+          <Input
+            placeholder="Search projects..."
+            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-        <Button variant="outline">
-          <Filter className="w-4 h-4 mr-2" />
-          Filter
-        </Button>
       </div>
 
       {/* Projects Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => (
+      {filteredProjects.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredProjects.map((project) => (
           <Card
             key={project.id}
             className="hover:shadow-lg transition-shadow cursor-pointer overflow-hidden group"
@@ -169,10 +216,29 @@ export default function ProjectsView({ onProjectSelect }: ProjectsViewProps) {
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground mb-2">No projects found</p>
+          {searchQuery ? (
+            <p className="text-sm text-muted-foreground">Try adjusting your search query</p>
+          ) : (
+            <Button onClick={() => setIsCreateProjectOpen(true)} variant="outline">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Your First Project
+            </Button>
+          )}
+        </div>
+      )}
 
-      <CreateProjectModal isOpen={isCreateProjectOpen} onClose={() => setIsCreateProjectOpen(false)} />
+      <CreateProjectModal
+        isOpen={isCreateProjectOpen}
+        onClose={() => {
+          setIsCreateProjectOpen(false)
+          fetchProjects() // Refresh projects after creating new one
+        }}
+      />
     </div>
   )
 }

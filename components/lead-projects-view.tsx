@@ -1,41 +1,77 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Filter, MoreVertical } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search, Filter, MoreVertical, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { useAuth } from "@/lib/auth-context"
+import { useOrganization } from "@/lib/organization-context"
 
 interface LeadProjectsViewProps {
   onProjectSelect: (projectId: string) => void
 }
 
+interface Project {
+  id: string
+  name: string
+  description: string
+  members: number
+  status: string
+  progress: number
+  tasks: number
+  dueDate: string
+  priority: string
+}
+
 export default function LeadProjectsView({ onProjectSelect }: LeadProjectsViewProps) {
-  // Only projects where current user is Lead
-  const leadProjects = [
-    {
-      id: "1",
-      name: "Mobile App MVP",
-      description: "Build MVP for the new mobile application",
-      members: 8,
-      status: "In Progress",
-      progress: 45,
-      tasks: 32,
-      dueDate: "2026-01-30",
-      priority: "Critical",
-    },
-    {
-      id: "2",
-      name: "Website Redesign",
-      description: "Complete overhaul of the marketing website",
-      members: 5,
-      status: "In Progress",
-      progress: 65,
-      tasks: 24,
-      dueDate: "2025-12-15",
-      priority: "High",
-    },
-  ]
+  const { user } = useAuth()
+  const { currentOrganization } = useOrganization()
+  const [leadProjects, setLeadProjects] = useState<Project[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+
+  // Fetch projects led by current user
+  const fetchLeadProjects = async () => {
+    if (!user || !currentOrganization) return
+
+    try {
+      setIsLoading(true)
+      setError(null)
+      const token = localStorage.getItem("token")
+      const response = await fetch("/api/projects/lead", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setLeadProjects(data.projects)
+      } else {
+        setError(data.error || "Failed to fetch projects")
+      }
+    } catch (error) {
+      console.error("Error fetching lead projects:", error)
+      setError("Failed to fetch projects")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchLeadProjects()
+  }, [user, currentOrganization])
+
+  // Filter projects based on search query
+  const filteredProjects = leadProjects.filter(
+    (project) =>
+      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.description.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -50,31 +86,63 @@ export default function LeadProjectsView({ onProjectSelect }: LeadProjectsViewPr
     }
   }
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Loading projects...</p>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="text-center py-12">
+          <p className="text-destructive mb-2">Error: {error}</p>
+          <Button onClick={fetchLeadProjects} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-8">
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-foreground mb-2">My Projects</h2>
-          <p className="text-muted-foreground">Projects you are leading</p>
+          <p className="text-muted-foreground">
+            Projects you are leading ({leadProjects.length} {leadProjects.length === 1 ? "project" : "projects"})
+          </p>
         </div>
+        <Button onClick={fetchLeadProjects} variant="outline" size="sm">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
       {/* Search and Filters */}
       <div className="flex gap-4 mb-6">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search projects..." className="pl-10" />
+          <Input
+            placeholder="Search projects..."
+            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-        <Button variant="outline">
-          <Filter className="w-4 h-4 mr-2" />
-          Filter
-        </Button>
       </div>
 
       {/* Projects Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {leadProjects.map((project) => (
+      {filteredProjects.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredProjects.map((project) => (
           <Card
             key={project.id}
             className="hover:shadow-lg transition-shadow cursor-pointer overflow-hidden group"
@@ -128,7 +196,17 @@ export default function LeadProjectsView({ onProjectSelect }: LeadProjectsViewPr
             </CardContent>
           </Card>
         ))}
-      </div>
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground mb-2">
+            {searchQuery ? "No projects found matching your search" : "No projects found"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {searchQuery ? "Try adjusting your search query" : "You are not leading any projects yet"}
+          </p>
+        </div>
+      )}
     </div>
   )
 }

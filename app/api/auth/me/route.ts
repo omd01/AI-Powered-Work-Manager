@@ -1,0 +1,57 @@
+import { NextRequest, NextResponse } from "next/server"
+import connectDB from "@/lib/db/mongodb"
+import User from "@/lib/models/User"
+import { authenticateUser, unauthorizedResponse } from "@/lib/middleware/auth"
+
+export async function GET(request: NextRequest) {
+  try {
+    // Authenticate user
+    const auth = await authenticateUser(request)
+
+    if (!auth.isAuthenticated || !auth.user) {
+      return unauthorizedResponse(auth.error || "Unauthorized")
+    }
+
+    await connectDB()
+
+    // Get user from database
+    const user = await User.findById(auth.user.userId).populate("organizationId", "name handle")
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "User not found",
+        },
+        { status: 404 },
+      )
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          profilePicture: user.profilePicture,
+          role: user.role,
+          organizationId: user.organizationId,
+          skills: user.skills,
+          createdAt: user.createdAt,
+        },
+      },
+      { status: 200 },
+    )
+  } catch (error: any) {
+    console.error("Get user error:", error)
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Internal server error",
+      },
+      { status: 500 },
+    )
+  }
+}

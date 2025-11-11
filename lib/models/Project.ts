@@ -1,0 +1,98 @@
+import mongoose, { Document, Schema, Model } from "mongoose"
+
+export interface IProject extends Document {
+  _id: mongoose.Types.ObjectId
+  name: string
+  description?: string
+  organizationId: mongoose.Types.ObjectId
+  createdById: mongoose.Types.ObjectId
+  leadId: mongoose.Types.ObjectId
+  memberIds: mongoose.Types.ObjectId[]
+  status: "Not Started" | "Planning" | "In Progress" | "Completed" | "On Hold"
+  priority: "Low" | "Medium" | "High" | "Critical"
+  progress: number // 0-100
+  startDate?: Date
+  endDate?: Date
+  createdAt: Date
+  updatedAt: Date
+}
+
+const ProjectSchema = new Schema<IProject>(
+  {
+    name: {
+      type: String,
+      required: [true, "Project name is required"],
+      trim: true,
+      minlength: [2, "Project name must be at least 2 characters"],
+      maxlength: [100, "Project name cannot exceed 100 characters"],
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Description cannot exceed 500 characters"],
+    },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      required: [true, "Organization is required"],
+    },
+    createdById: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false, // Optional for backward compatibility
+    },
+    leadId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: [true, "Project lead is required"],
+    },
+    memberIds: [{
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    }],
+    status: {
+      type: String,
+      enum: ["Not Started", "Planning", "In Progress", "Completed", "On Hold"],
+      default: "Not Started",
+    },
+    priority: {
+      type: String,
+      enum: ["Low", "Medium", "High", "Critical"],
+      default: "Medium",
+    },
+    progress: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0,
+    },
+    startDate: {
+      type: Date,
+      default: null,
+    },
+    endDate: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+  },
+)
+
+// Indexes for faster queries
+ProjectSchema.index({ organizationId: 1 })
+ProjectSchema.index({ createdById: 1 })
+ProjectSchema.index({ leadId: 1 })
+ProjectSchema.index({ status: 1 })
+ProjectSchema.index({ createdAt: -1 })
+
+// Delete cached model to ensure schema changes are applied
+if (mongoose.models.Project) {
+  delete mongoose.models.Project
+}
+
+// Create the model with updated schema
+const Project: Model<IProject> = mongoose.model<IProject>("Project", ProjectSchema)
+
+export default Project

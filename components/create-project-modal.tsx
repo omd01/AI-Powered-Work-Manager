@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useOrganization } from "@/lib/organization-context"
+import { useAuth } from "@/lib/auth-context"
 
 interface CreateProjectModalProps {
   isOpen: boolean
@@ -15,8 +16,8 @@ interface CreateProjectModalProps {
 }
 
 export default function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps) {
-  const { currentOrganization, getOrganizationMembers } = useOrganization()
-  const members = getOrganizationMembers(currentOrganization.id)
+  const { currentOrganization, members, isLoading } = useOrganization()
+  const { refreshUser } = useAuth()
 
   const [formData, setFormData] = useState({
     projectName: "",
@@ -26,6 +27,7 @@ export default function CreateProjectModal({ isOpen, onClose }: CreateProjectMod
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -44,20 +46,56 @@ export default function CreateProjectModal({ isOpen, onClose }: CreateProjectMod
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (validateForm()) {
-      console.log("[v0] Project created:", formData)
-      // Reset form
-      setFormData({
-        projectName: "",
-        description: "",
-        lead: "",
-        priority: "Medium",
-      })
-      setErrors({})
-      onClose()
+      try {
+        setIsSubmitting(true)
+        const token = localStorage.getItem("token")
+
+        const response = await fetch("/api/projects", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            name: formData.projectName,
+            description: formData.description,
+            leadId: formData.lead,
+            priority: formData.priority,
+          }),
+        })
+
+        const data = await response.json()
+
+        if (data.success) {
+          // Refresh user data in case current user was assigned as lead
+          await refreshUser()
+
+          // Reset form
+          setFormData({
+            projectName: "",
+            description: "",
+            lead: "",
+            priority: "Medium",
+          })
+          setErrors({})
+          onClose() // This will trigger fetchProjects in parent component
+
+          // Force a full page reload to ensure UI updates properly
+          window.location.reload()
+        } else {
+          setErrors({ general: data.error || "Failed to create project" })
+        }
+      } catch (error) {
+        console.error("Error creating project:", error)
+        setErrors({ general: "Failed to create project. Please try again." })
+      } finally {
+        setIsSubmitting(false)
+      }
     }
   }
 
@@ -77,6 +115,9 @@ export default function CreateProjectModal({ isOpen, onClose }: CreateProjectMod
   }
 
   if (!isOpen) return null
+
+  // Don't render modal content if organization data is not loaded yet
+  if (isLoading || !currentOrganization) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -161,13 +202,20 @@ export default function CreateProjectModal({ isOpen, onClose }: CreateProjectMod
               {errors.lead && <p className="text-xs text-destructive mt-1">{errors.lead}</p>}
             </div>
 
+            {/* General Error */}
+            {errors.general && (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                <p className="text-xs text-destructive">{errors.general}</p>
+              </div>
+            )}
+
             {/* Priority Selection */}
             <div className="space-y-2">
               <label htmlFor="priority" className="text-sm font-medium text-foreground block">
                 Priority Level
               </label>
               <div className="flex gap-3">
-                {["Low", "Medium", "High"].map((priority) => (
+                {["Low", "Medium", "High", "Critical"].map((priority) => (
                   <button
                     key={priority}
                     type="button"
@@ -191,12 +239,22 @@ export default function CreateProjectModal({ isOpen, onClose }: CreateProjectMod
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="flex-1 bg-transparent"
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90">
+              <Button
+                type="submit"
+                className="flex-1 bg-primary hover:bg-primary/90"
+                disabled={isSubmitting}
+              >
                 <Plus className="w-4 h-4 mr-2" />
-                Create Project
+                {isSubmitting ? "Creating..." : "Create Project"}
               </Button>
             </div>
           </form>

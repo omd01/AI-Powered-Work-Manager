@@ -87,7 +87,7 @@ export default function AITaskAssignerModal({ isOpen, onClose }: AITaskAssignerM
 
   const handleConfirmAssignments = () => {
     // Here you would save the tasks to the backend
-    console.log("Assigning tasks:", generatedTasks)
+   
     alert("Tasks assigned successfully!")
     onClose()
     // Reset

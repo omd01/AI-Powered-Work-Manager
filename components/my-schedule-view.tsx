@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { Calendar, Clock, Save } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Calendar, Clock, Save, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { useAuth } from "@/lib/auth-context"
 
 interface TimeBlock {
   id: string
@@ -16,6 +17,9 @@ interface TimeBlock {
 }
 
 export default function MyScheduleView() {
+  const { user } = useAuth()
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [workingHours, setWorkingHours] = useState({
     monday: { start: "09:00", end: "17:00", enabled: true },
     tuesday: { start: "09:00", end: "17:00", enabled: true },
@@ -26,16 +30,7 @@ export default function MyScheduleView() {
     sunday: { start: "09:00", end: "17:00", enabled: false },
   })
 
-  const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([
-    {
-      id: "1",
-      title: "Team Meeting",
-      day: "monday",
-      startTime: "10:00",
-      endTime: "11:00",
-      type: "blocked",
-    },
-  ])
+  const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([])
 
   const days = [
     { key: "monday", label: "Monday" },
@@ -47,6 +42,38 @@ export default function MyScheduleView() {
     { key: "sunday", label: "Sunday" },
   ]
 
+  // Fetch schedule from backend
+  const fetchSchedule = async () => {
+    if (!user) return
+
+    try {
+      setIsLoading(true)
+      const token = localStorage.getItem("token")
+      const response = await fetch("/api/schedule", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.schedule) {
+        setWorkingHours(data.schedule.workingHours)
+        setTimeBlocks(data.schedule.timeBlocks || [])
+      }
+    } catch (error) {
+      console.error("Error fetching schedule:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Fetch schedule on mount
+  useEffect(() => {
+    fetchSchedule()
+  }, [user])
+
   const handleWorkingHoursChange = (day: string, field: string, value: string | boolean) => {
     setWorkingHours((prev) => ({
       ...prev,
@@ -57,9 +84,45 @@ export default function MyScheduleView() {
     }))
   }
 
-  const handleSave = () => {
-    console.log("Saving schedule:", { workingHours, timeBlocks })
-    alert("Schedule saved! AI will use this information for task assignments.")
+  const handleSave = async () => {
+    try {
+      setIsSaving(true)
+      const token = localStorage.getItem("token")
+      const response = await fetch("/api/schedule", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({ workingHours, timeBlocks }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert("Schedule saved successfully! AI will use this information for task assignments.")
+      } else {
+        alert(data.error || "Failed to save schedule")
+      }
+    } catch (error) {
+      console.error("Error saving schedule:", error)
+      alert("Failed to save schedule")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center h-full">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <p>Loading schedule...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -182,9 +245,18 @@ export default function MyScheduleView() {
 
         {/* Save Button */}
         <div className="flex justify-end">
-          <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
-            <Save className="w-4 h-4 mr-2" />
-            Save Schedule
+          <Button onClick={handleSave} className="bg-primary hover:bg-primary/90" disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Save Schedule
+              </>
+            )}
           </Button>
         </div>
       </div>

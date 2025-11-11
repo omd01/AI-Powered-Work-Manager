@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"components\\admin-ai-task-assigner-modal.tsx\")",
+      "Bash(npm install mongoose bcryptjs jsonwebtoken cookie-parser)",
+      "Bash(npm install mongoose bcryptjs jsonwebtoken cookie-parser --legacy-peer-deps)",
+      "Bash(npm install -D @types/bcryptjs @types/jsonwebtoken @types/cookie-parser --legacy-peer-deps)",
+      "Bash(npm install mongoose --legacy-peer-deps)",
+      "Bash(npm cache clean --force)",
+      "Bash(npm install bcryptjs jsonwebtoken mongoose --save --legacy-peer-deps)",
+      "Bash(npm run build)",
+      "Bash(tasklist)",
+      "Bash(findstr /i \"mongod\")",
+      "Bash(npm run dev)",
+      "Bash(findstr /i \"node\")",
+      "Bash(findstr node)",
+      "Bash(taskkill /F /PID 35152 2)",
+      "Bash(nul)",
+      "Bash(del \"C:\\code\\Work Managment 3\\components\\lead-my-tasks-view.tsx\")",
+      "Bash(findstr \"35152\")",
+      "Bash(curl -X POST http://localhost:3000/api/organizations/migrate-status)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

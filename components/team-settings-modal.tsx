@@ -15,7 +15,10 @@ interface TeamSettingsModalProps {
 }
 
 export default function TeamSettingsModal({ isOpen, onClose }: TeamSettingsModalProps) {
-  const { currentOrganization } = useOrganization()
+  const { currentOrganization, isLoading } = useOrganization()
+
+  // Don't render if organization data is not loaded yet
+  if (isLoading || !currentOrganization) return null
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

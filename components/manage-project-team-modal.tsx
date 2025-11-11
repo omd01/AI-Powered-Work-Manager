@@ -1,176 +1,441 @@
 "use client"
 
-import { useState } from "react"
-import { X, Users, Plus, Trash2 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Users, Plus, X, Loader2, Crown, Shield, Search, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useOrganization } from "@/lib/organization-context"
+import { useAuth } from "@/lib/auth-context"
 
 interface ManageProjectTeamModalProps {
   isOpen: boolean
   onClose: () => void
+  projectId: string | null
+  onTeamUpdate?: () => void
 }
 
-// Mock available members that can be added to projects
-const AVAILABLE_MEMBERS = [
-  { id: "member-7", name: "Sarah Chen", email: "sarah@acme.com", skills: ["Project Management", "UI/UX"], avatar: "SC" },
-  { id: "member-8", name: "Alex Rivera", email: "alex@acme.com", skills: ["DevOps", "Database"], avatar: "AR" },
-]
+interface Member {
+  id: string
+  name: string
+  email: string
+  role: string
+  skills: string[]
+}
 
-// Current team members
-const CURRENT_TEAM_MEMBERS = [
-  { id: "member-4", name: "Emma Wilson", email: "emma@acme.com", skills: ["Frontend Development", "React"], avatar: "EW" },
-  { id: "member-5", name: "James Park", email: "james@acme.com", skills: ["Mobile Development", "React Native"], avatar: "JP" },
-  { id: "member-6", name: "David Kim", email: "david@acme.com", skills: ["Backend Development", "Node.js"], avatar: "DK" },
-]
+interface ProjectCreator {
+  id: string
+  name: string
+  email: string
+  role: string
+}
 
-export default function ManageProjectTeamModal({ isOpen, onClose }: ManageProjectTeamModalProps) {
-  const [teamMembers, setTeamMembers] = useState(CURRENT_TEAM_MEMBERS)
+export default function ManageProjectTeamModal({
+  isOpen,
+  onClose,
+  projectId,
+  onTeamUpdate,
+}: ManageProjectTeamModalProps) {
+  const { members: orgMembers } = useOrganization()
+  const { user } = useAuth()
+  const [teamMembers, setTeamMembers] = useState<Member[]>([])
+  const [projectLead, setProjectLead] = useState<Member | null>(null)
+  const [projectCreator, setProjectCreator] = useState<ProjectCreator | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [showAddMembers, setShowAddMembers] = useState(false)
 
-  const handleRemoveMember = (memberId: string) => {
-    setTeamMembers((prev) => prev.filter((m) => m.id !== memberId))
-  }
+  // Fetch project team members
+  const fetchProjectTeam = async () => {
+    if (!projectId) return
 
-  const handleAddMember = (member: typeof AVAILABLE_MEMBERS[0]) => {
-    if (!teamMembers.find((m) => m.id === member.id)) {
-      setTeamMembers((prev) => [...prev, member])
+    try {
+      setIsLoading(true)
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/projects/${projectId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.project) {
+        setTeamMembers(data.project.members || [])
+        setProjectLead({
+          id: data.project.leadId,
+          name: data.project.lead,
+          email: data.project.leadEmail,
+          role: "Lead",
+          skills: [],
+        })
+
+        // Set project creator if available
+        if (data.project.createdById) {
+          setProjectCreator({
+            id: data.project.createdById,
+            name: data.project.createdBy,
+            email: data.project.createdByEmail,
+            role: data.project.createdByRole,
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching project team:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const filteredAvailable = AVAILABLE_MEMBERS.filter(
+  useEffect(() => {
+    if (isOpen && projectId) {
+      fetchProjectTeam()
+      setShowAddMembers(false)
+      setSearchQuery("")
+    }
+  }, [isOpen, projectId])
+
+  const handleRemoveMember = async (memberId: string, memberName: string) => {
+    if (!projectId) return
+
+    // Check if trying to remove lead or creator
+    if (memberId === projectLead?.id) {
+      alert("Cannot remove the project lead from the team.")
+      return
+    }
+
+    if (memberId === projectCreator?.id) {
+      alert("Cannot remove the project creator from the team.")
+      return
+    }
+
+    if (!confirm(`Remove ${memberName} from this project?`)) {
+      return
+    }
+
+    try {
+      setIsProcessing(true)
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/projects/${projectId}/members?memberId=${memberId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setTeamMembers((prev) => prev.filter((m) => m.id !== memberId))
+        onTeamUpdate?.()
+      } else {
+        alert(data.error || "Failed to remove member")
+      }
+    } catch (error) {
+      console.error("Error removing member:", error)
+      alert("Failed to remove member")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleAddMember = async (member: Member) => {
+    if (!projectId) return
+
+    try {
+      setIsProcessing(true)
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/projects/${projectId}/members`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({ memberId: member.id }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setTeamMembers((prev) => [...prev, data.member])
+        setSearchQuery("")
+        onTeamUpdate?.()
+      } else {
+        alert(data.error || "Failed to add member")
+      }
+    } catch (error) {
+      console.error("Error adding member:", error)
+      alert("Failed to add member")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Get available members (org members not in project, excluding the lead and creator)
+  const filteredAvailable = orgMembers.filter(
     (m) =>
       !teamMembers.find((tm) => tm.id === m.id) &&
+      m.id !== projectLead?.id &&
+      m.id !== projectCreator?.id &&
+      m.role === "Member" && // Only show members, not other leads or admins
       (m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         m.email.toLowerCase().includes(searchQuery.toLowerCase())),
   )
 
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case "Admin":
+        return "bg-purple-500/10 text-purple-700 dark:text-purple-400"
+      case "Lead":
+        return "bg-blue-500/10 text-blue-700 dark:text-blue-400"
+      default:
+        return "bg-gray-500/10 text-gray-700 dark:text-gray-400"
+    }
+  }
+
+  const getAvatarColor = (role: string) => {
+    switch (role) {
+      case "Admin":
+        return "bg-purple-500"
+      case "Lead":
+        return "bg-blue-500"
+      default:
+        return "bg-gray-500"
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl">
-            <Users className="w-6 h-6 text-primary" />
-            Manage Project Team
-          </DialogTitle>
-          <DialogDescription>
-            Add or remove team members from your projects. Changes will affect task assignments and project access.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[85vh] p-0">
+        {/* Header */}
+        <div className="px-6 py-5 border-b">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
+              <Users className="w-5 h-5 text-muted-foreground" />
+              Team Members
+            </DialogTitle>
+            <DialogDescription className="mt-1">
+              Manage who has access to this project
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <div className="space-y-6">
-          {/* Current Team Members */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Current Team Members</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {teamMembers.map((member) => (
-                <Card key={member.id} className="border-primary/20">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                          {member.avatar}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="flex flex-col max-h-[calc(85vh-120px)]">
+            {/* Members List */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="space-y-2">
+                {/* Project Creator */}
+                {projectCreator && (
+                  <div className="flex items-center gap-3 py-3 px-3 rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className={`w-10 h-10 rounded-full ${getAvatarColor(projectCreator.role)} flex items-center justify-center text-white text-sm font-medium`}>
+                      {getInitials(projectCreator.name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">{projectCreator.name}</p>
+                        <Crown className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{projectCreator.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-1 rounded-md font-medium ${getRoleBadgeColor(projectCreator.role)}`}>
+                        {projectCreator.role}
+                      </span>
+                      <Shield className="w-4 h-4 text-muted-foreground/50" title="Protected" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Project Lead */}
+                {projectLead && projectLead.id !== projectCreator?.id && (
+                  <div className="flex items-center gap-3 py-3 px-3 rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className={`w-10 h-10 rounded-full ${getAvatarColor("Lead")} flex items-center justify-center text-white text-sm font-medium`}>
+                      {getInitials(projectLead.name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">{projectLead.name}</p>
+                        {user?.id === projectLead.id && (
+                          <span className="text-xs px-1.5 py-0.5 bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded">You</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{projectLead.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-1 rounded-md font-medium ${getRoleBadgeColor("Lead")}`}>
+                        Lead
+                      </span>
+                      <Shield className="w-4 h-4 text-muted-foreground/50" title="Protected" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Divider */}
+                {(projectCreator || projectLead) && teamMembers.length > 0 && (
+                  <div className="border-t my-2" />
+                )}
+
+                {/* Team Members */}
+                {(() => {
+                  const filteredMembers = teamMembers.filter(
+                    (member) => member.id !== projectLead?.id && member.id !== projectCreator?.id
+                  )
+
+                  if (filteredMembers.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-sm text-muted-foreground">
+                        No team members yet
+                      </div>
+                    )
+                  }
+
+                  return filteredMembers.map((member) => {
+                    const isCurrentUser = member.id === user?.id
+                    // Can remove if not Admin or Lead role
+                    const canRemove = member.role !== "Admin" && member.role !== "Lead"
+
+                    return (
+                      <div
+                        key={member.id}
+                        className="flex items-center gap-3 py-3 px-3 rounded-lg hover:bg-muted/50 transition-colors group"
+                      >
+                        <div className={`w-10 h-10 rounded-full ${getAvatarColor(member.role)} flex items-center justify-center text-white text-sm font-medium`}>
+                          {getInitials(member.name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-foreground truncate">{member.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                          <div className="flex gap-1 flex-wrap mt-2">
-                            {member.skills.slice(0, 2).map((skill) => (
-                              <span key={skill} className="text-xs bg-secondary/20 text-secondary px-2 py-1 rounded">
-                                {skill}
-                              </span>
-                            ))}
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium truncate">{member.name}</p>
+                            {isCurrentUser && (
+                              <span className="text-xs px-1.5 py-0.5 bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded">You</span>
+                            )}
                           </div>
+                          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-2 py-1 rounded-md font-medium ${getRoleBadgeColor(member.role)}`}>
+                            {member.role}
+                          </span>
+                          {canRemove ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveMember(member.id, member.name)}
+                              disabled={isProcessing}
+                              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <div className="h-8 w-8 flex items-center justify-center">
+                              <Shield className="w-4 h-4 text-muted-foreground/50" title="Protected role" />
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveMember(member.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    )
+                  })
+                })()}
+              </div>
             </div>
-          </div>
 
-          {/* Add Team Members */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Add Team Members</h3>
-            <div className="mb-4">
-              <Input
-                placeholder="Search members..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredAvailable.length > 0 ? (
-                filteredAvailable.map((member) => (
-                  <Card key={member.id} className="hover:border-primary/50 transition-colors cursor-pointer">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                            {member.avatar}
+            {/* Add Members Section */}
+            {showAddMembers ? (
+              <div className="border-t bg-muted/30">
+                <div className="px-6 py-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Search className="w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search members to add..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="flex-1 h-9 text-sm"
+                      autoFocus
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowAddMembers(false)
+                        setSearchQuery("")
+                      }}
+                      className="h-9"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {filteredAvailable.length > 0 ? (
+                      filteredAvailable.map((member) => (
+                        <button
+                          key={member.id}
+                          onClick={() => handleAddMember(member)}
+                          disabled={isProcessing}
+                          className="w-full flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-background transition-colors text-left"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-gray-500 flex items-center justify-center text-white text-xs font-medium">
+                            {getInitials(member.name)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-foreground truncate">{member.name}</p>
+                            <p className="text-sm font-medium truncate">{member.name}</p>
                             <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                            <div className="flex gap-1 flex-wrap mt-2">
-                              {member.skills.slice(0, 2).map((skill) => (
-                                <span key={skill} className="text-xs bg-secondary/20 text-secondary px-2 py-1 rounded">
-                                  {skill}
-                                </span>
-                              ))}
-                            </div>
                           </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAddMember(member)}
-                          className="border-primary text-primary hover:bg-primary/10"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              ) : (
-                <div className="col-span-2 text-center py-8 text-muted-foreground">
-                  {searchQuery ? "No members found matching your search" : "No available members to add"}
+                          <Plus className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        </button>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        {searchQuery ? "No members found" : "All members are already in this project"}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              )}
+              </div>
+            ) : null}
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t bg-muted/30 flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                {teamMembers.length + (projectLead ? 1 : 0) + (projectCreator && projectCreator.id !== projectLead?.id ? 1 : 0)} member{teamMembers.length + (projectLead ? 1 : 0) + (projectCreator && projectCreator.id !== projectLead?.id ? 1 : 0) !== 1 ? 's' : ''}
+              </div>
+              <div className="flex gap-2">
+                {!showAddMembers && filteredAvailable.length > 0 && (
+                  <Button
+                    onClick={() => setShowAddMembers(true)}
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Member
+                  </Button>
+                )}
+                <Button onClick={onClose} size="sm">
+                  Done
+                </Button>
+              </div>
             </div>
           </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 justify-end pt-4 border-t">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                console.log("Team updated:", teamMembers)
-                alert("Team updated successfully!")
-                onClose()
-              }}
-              className="bg-primary hover:bg-primary/90"
-            >
-              Save Changes
-            </Button>
-          </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   )
 }
-
