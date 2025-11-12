@@ -33,17 +33,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`[JOIN] User ${auth.user.userId} attempting to join organization ${organization.name} (${organization._id})`)
-
+   
     // Check if user is already a member (active or pending)
     const existingMember = organization.members.find(
-      (member: any) => member.userId.toString() === auth.user.userId,
+      (member: any) => member.userId.toString() === auth.user!.userId,
     )
 
     if (existingMember) {
       // If status is undefined, treat it as "active" (legacy data)
       const memberStatus = existingMember.status || "active"
-      console.log(`[JOIN] User is already a member with status: ${memberStatus}`)
+      
 
       const statusMsg = memberStatus === "active"
         ? "You are already a member of this organization"
@@ -70,7 +69,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingRequest) {
-      console.log(`[JOIN] User already has a pending request from ${existingRequest.requestedAt}`)
+      
       return NextResponse.json(
         {
           success: false,
@@ -94,7 +93,7 @@ export async function POST(request: NextRequest) {
     })
 
     await memberRequest.save()
-    console.log(`[JOIN] Created member request ${memberRequest._id} for user ${auth.user.userId} to join ${organization.name}`)
+    
 
     return NextResponse.json(
       {
@@ -103,7 +102,7 @@ export async function POST(request: NextRequest) {
         organization: {
           id: organization._id.toString(),
           name: organization.name,
-          logo: organization.logo || organization.name.charAt(0).toUpperCase(),
+          logo: (organization as any).logo || organization.name.charAt(0).toUpperCase(),
           inviteCode: organization.inviteCode,
         },
         status: "pending",

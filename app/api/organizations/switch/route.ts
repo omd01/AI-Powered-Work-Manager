@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // Check organization member status
     const orgMember = organization.members.find(
-      (member: any) => member.userId.toString() === auth.user.userId && member.status === "active",
+      (member: any) => member.userId.toString() === auth.user!.userId && member.status === "active",
     )
 
     if (!orgMember) {
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         organization: {
           id: organization._id.toString(),
           name: organization.name,
-          logo: organization.logo || organization.name.charAt(0).toUpperCase(),
+          logo: (organization as any).logo || organization.name.charAt(0).toUpperCase(),
           inviteCode: organization.inviteCode,
         },
         role: userOrg.role,

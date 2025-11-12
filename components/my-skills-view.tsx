@@ -27,7 +27,7 @@ export default function MySkillsView() {
   }
 
   const handleSave = () => {
-    console.log("Saving skills:", skills)
+    
     alert("Skills saved! AI will use this information for task assignments.")
   }
 

@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     const taskCount = tasks.length
     const pendingTasks = tasks.filter(t => t.status === "Todo").length
-    const completedTasks = tasks.filter(t => t.status === "Completed").length
+    const completedTasks = tasks.filter(t => t.status === "Done").length
     const aiAssignments = tasks.filter(t => t.isAIAssigned).length
 
     // Get recent projects (last 3)

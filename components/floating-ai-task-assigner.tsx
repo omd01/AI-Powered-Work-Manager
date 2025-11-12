@@ -3,8 +3,8 @@
 import { useState } from "react"
 import { Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import AITaskAssignerModal from "@/components/ai-task-assigner-modal"
 import AdminAITaskAssignerSleek from "@/components/admin-ai-task-assigner-sleek"
+import LeadAITaskAssigner from "@/components/lead-ai-task-assigner"
 import { useOrganization } from "@/lib/organization-context"
 import { useAuth } from "@/lib/auth-context"
 
@@ -34,11 +34,11 @@ export default function FloatingAITaskAssigner() {
         <span className="font-medium">AI Task Assigner</span>
       </Button>
 
-      {/* Admin uses the sleek delegating workflow, Lead uses the team management workflow */}
+      {/* Admin delegates to Leads, Lead assigns to Members */}
       {currentUserRole === "Admin" ? (
         <AdminAITaskAssignerSleek isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
       ) : (
-        <AITaskAssignerModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+        <LeadAITaskAssigner isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
       )}
     </>
   )

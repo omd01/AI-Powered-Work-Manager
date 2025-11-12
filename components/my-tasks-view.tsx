@@ -1,13 +1,24 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Plus, Filter, Search, CheckCircle2, Circle, AlertCircle, ChevronDown, RefreshCw, Trash2 } from "lucide-react"
+import { Plus, Filter, Search, CheckCircle2, Circle, AlertCircle, ChevronDown, RefreshCw, Trash2, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useOrganization } from "@/lib/organization-context"
 import { useAuth } from "@/lib/auth-context"
 import CreateTaskModal from "./create-task-modal"
+import { toast } from "sonner"
 
 interface Task {
   id: string
@@ -34,6 +45,11 @@ export default function MyTasksView() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; taskId: string; taskTitle: string }>({
+    isOpen: false,
+    taskId: "",
+    taskTitle: "",
+  })
 
   // Fetch tasks from API
   const fetchTasks = async () => {
@@ -58,7 +74,6 @@ export default function MyTasksView() {
         setError(data.error || "Failed to fetch tasks")
       }
     } catch (error) {
-      console.error("Error fetching tasks:", error)
       setError("Failed to fetch tasks")
     } finally {
       setIsLoading(false)
@@ -68,6 +83,16 @@ export default function MyTasksView() {
   useEffect(() => {
     fetchTasks()
   }, [user, currentOrganization])
+
+  // Function to copy task description
+  const handleCopyDescription = async (description: string, taskTitle: string) => {
+    try {
+      await navigator.clipboard.writeText(description)
+      toast.success(`Copied description for "${taskTitle}"`)
+    } catch (error) {
+      toast.error("Failed to copy description")
+    }
+  }
 
   // Function to update task status
   const handleStatusChange = async (taskId: string, newStatus: "Todo" | "Planning" | "In Progress" | "Done") => {
@@ -90,20 +115,18 @@ export default function MyTasksView() {
         setAllTasks((prevTasks) =>
           prevTasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)),
         )
+        toast.success("Task status updated")
       } else {
-        alert(data.error || "Failed to update task status")
+        toast.error(data.error || "Failed to update task status")
       }
     } catch (error) {
-      console.error("Error updating task status:", error)
-      alert("Failed to update task status")
+      toast.error("Failed to update task status")
     }
   }
 
   // Function to delete task (Admin only)
-  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
-    if (!confirm(`Are you sure you want to delete "${taskTitle}"? This action cannot be undone.`)) {
-      return
-    }
+  const handleDeleteTask = async () => {
+    const { taskId, taskTitle } = deleteConfirmation
 
     try {
       const token = localStorage.getItem("token")
@@ -120,12 +143,13 @@ export default function MyTasksView() {
       if (data.success) {
         // Remove task from local state
         setAllTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId))
+        toast.success(`Deleted task "${taskTitle}"`)
+        setDeleteConfirmation({ isOpen: false, taskId: "", taskTitle: "" })
       } else {
-        alert(data.error || "Failed to delete task")
+        toast.error(data.error || "Failed to delete task")
       }
     } catch (error) {
-      console.error("Error deleting task:", error)
-      alert("Failed to delete task")
+      toast.error("Failed to delete task")
     }
   }
 
@@ -418,7 +442,7 @@ export default function MyTasksView() {
                           className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleDeleteTask(task.id, task.title)
+                            setDeleteConfirmation({ isOpen: true, taskId: task.id, taskTitle: task.title })
                           }}
                         >
                           <Trash2 className="w-3 h-3" />
@@ -488,7 +512,21 @@ export default function MyTasksView() {
                   {expandedTask === task.id && (
                     <div className="pt-3 border-t border-border space-y-2">
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1">Full Description</p>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs font-medium text-muted-foreground">Full Description</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCopyDescription(task.description, task.title)
+                            }}
+                          >
+                            <Copy className="w-3 h-3 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
                         <p className="text-sm text-foreground">{task.description}</p>
                       </div>
                       <div>
@@ -517,6 +555,24 @@ export default function MyTasksView() {
           fetchTasks() // Refresh tasks after creating new one
         }}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmation.isOpen} onOpenChange={(open) => !open && setDeleteConfirmation({ isOpen: false, taskId: "", taskTitle: "" })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <span className="font-semibold text-foreground">"{deleteConfirmation.taskTitle}"</span>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTask} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              Delete Task
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

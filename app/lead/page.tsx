@@ -7,10 +7,10 @@ import AdminTasksView from "@/components/admin-tasks-view"
 import LeadMembersView from "@/components/lead-members-view"
 import LeadMyTasksView from "@/components/lead-my-tasks-view"
 import MyScheduleView from "@/components/my-schedule-view"
-import MySkillsView from "@/components/my-skills-view"
+import SkillsView from "@/components/skills-view"
 import OrganizationSwitcher from "@/components/organization-switcher"
 import { OrganizationProvider } from "@/lib/organization-context"
-import AITaskAssignerModal from "@/components/ai-task-assigner-modal"
+import LeadAITaskAssigner from "@/components/lead-ai-task-assigner"
 import ManageProjectTeamModal from "@/components/manage-project-team-modal"
 import FloatingAITaskAssigner from "@/components/floating-ai-task-assigner"
 import ProtectedRoute from "@/components/protected-route"
@@ -156,11 +156,11 @@ function LeadPageContent() {
           )}
           {currentView === "members" && <LeadMembersView onViewChange={handleViewChange} />}
           {currentView === "my-schedule" && <MyScheduleView />}
-          {currentView === "my-skills" && <MySkillsView />}
+          {currentView === "my-skills" && <SkillsView />}
         </main>
 
         {/* AI Task Assigner Modal */}
-        <AITaskAssignerModal isOpen={isAITaskAssignerOpen} onClose={() => setIsAITaskAssignerOpen(false)} />
+        <LeadAITaskAssigner isOpen={isAITaskAssignerOpen} onClose={() => setIsAITaskAssignerOpen(false)} />
 
         {/* Manage Project Team Modal */}
         <ManageProjectTeamModal

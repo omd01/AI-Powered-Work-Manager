@@ -23,6 +23,17 @@ export async function POST(request: NextRequest) {
 
     for (const user of users) {
       try {
+        // Skip if organizationId is somehow undefined (shouldn't happen due to query)
+        if (!user.organizationId) {
+          errors.push({
+            userId: user._id.toString(),
+            email: user.email,
+            error: "User has no organizationId",
+          })
+          errorCount++
+          continue
+        }
+
         // Get the user's role in the organization from the Organization document
         const organization = await Organization.findById(user.organizationId)
         if (!organization) {

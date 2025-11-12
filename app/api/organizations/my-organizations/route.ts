@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     // Filter organizations where user status is "active" (not pending)
     // If status is undefined, treat it as "active" (legacy data)
     const activeOrganizations = organizations.filter((org: any) => {
-      const userMember = org.members.find((m: any) => m.userId.toString() === auth.user.userId)
+      const userMember = org.members.find((m: any) => m.userId.toString() === auth.user!.userId)
       const memberStatus = userMember?.status || "active"
       return userMember && memberStatus === "active"
     })

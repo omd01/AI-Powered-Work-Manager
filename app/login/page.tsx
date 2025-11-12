@@ -118,9 +118,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center">
-            <span className="text-2xl font-bold text-primary-foreground">W</span>
-          </div>
+         
           <CardTitle className="text-3xl font-bold">
             {isSignUp ? "Create Account" : "Welcome Back"}
           </CardTitle>

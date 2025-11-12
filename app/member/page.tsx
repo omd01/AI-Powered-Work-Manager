@@ -4,7 +4,7 @@ import { useState } from "react"
 import MemberMyTasksView from "@/components/member-my-tasks-view"
 import MemberProjectsView from "@/components/member-projects-view"
 import MyScheduleView from "@/components/my-schedule-view"
-import MySkillsView from "@/components/my-skills-view"
+import SkillsView from "@/components/skills-view"
 import OrganizationSwitcher from "@/components/organization-switcher"
 import { OrganizationProvider } from "@/lib/organization-context"
 import ProtectedRoute from "@/components/protected-route"
@@ -107,7 +107,7 @@ function MemberPageContent() {
           {currentView === "my-tasks" && <MemberMyTasksView />}
           {currentView === "projects" && <MemberProjectsView />}
           {currentView === "my-schedule" && <MyScheduleView />}
-          {currentView === "my-skills" && <MySkillsView />}
+          {currentView === "my-skills" && <SkillsView />}
         </main>
       </div>
     </OrganizationProvider>

@@ -24,25 +24,35 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id: memberId } = await params
 
-    // Get current user's organizationId from database
-    const currentUser = await User.findById(auth.user.userId).select("organizationId")
-    if (!currentUser || !currentUser.organizationId) {
+    // Get current user's currentOrganizationId from database (not JWT)
+    const currentUser = await User.findById(auth.user.userId).select("currentOrganizationId organizationId")
+    const orgId = currentUser?.currentOrganizationId || currentUser?.organizationId
+
+    if (!currentUser || !orgId) {
       return NextResponse.json({ success: false, error: "User not in an organization" }, { status: 400 })
     }
 
+    
+
     // Get the member to remove
-    const memberToRemove = await User.findById(memberId)
+    const memberToRemove = await User.findById(memberId).select("name email organizations")
     if (!memberToRemove) {
       return NextResponse.json({ success: false, error: "Member not found" }, { status: 404 })
     }
 
-    // Check if member is in the same organization
-    if (memberToRemove.organizationId?.toString() !== currentUser.organizationId.toString()) {
+    // Check if member is in the same organization (check organizations array)
+    const memberInOrg = memberToRemove.organizations?.find(
+      (org: any) => org.organizationId.toString() === orgId.toString()
+    )
+
+    if (!memberInOrg) {
+      
       return forbiddenResponse("Member is not in your organization")
     }
 
+   
     // Prevent removing the admin (creator) of the organization
-    const organization = await Organization.findById(currentUser.organizationId)
+    const organization = await Organization.findById(orgId)
     if (!organization) {
       return NextResponse.json({ success: false, error: "Organization not found" }, { status: 404 })
     }
@@ -121,7 +131,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       (member: any) => member.userId.toString() !== memberId,
     )
     await organization.save()
-    console.log(`[REMOVE_MEMBER] Removed user ${memberId} from organization ${organization.name}`)
+
 
     // Update user's organizations array - remove this organization
     const userToUpdate = await User.findById(memberId)
@@ -136,7 +146,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     // Remove the organization from user's organizations array
     userToUpdate.organizations = userToUpdate.organizations.filter(
-      (org: any) => org.organizationId.toString() !== currentUser.organizationId.toString(),
+      (org: any) => org.organizationId.toString() !== orgId.toString(),
     )
 
     let switchedToOrganization = null
@@ -157,16 +167,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
           name: newOrgDetails.name,
           role: newOrg.role,
         }
-        console.log(
-          `[REMOVE_MEMBER] Switched user to organization: ${newOrgDetails.name} with role: ${newOrg.role}`,
-        )
+        
       }
     } else {
       // No other organizations, clear organization references
-      userToUpdate.currentOrganizationId = null
-      userToUpdate.organizationId = null // Keep for backward compatibility
+      userToUpdate.currentOrganizationId = undefined
+      userToUpdate.organizationId = undefined // Keep for backward compatibility
       userToUpdate.role = "Member"
-      console.log(`[REMOVE_MEMBER] User has no other organizations, cleared organization references`)
+
     }
 
     await userToUpdate.save()

@@ -18,7 +18,14 @@
       "Bash(nul)",
       "Bash(del \"C:\\code\\Work Managment 3\\components\\lead-my-tasks-view.tsx\")",
       "Bash(findstr \"35152\")",
-      "Bash(curl -X POST http://localhost:3000/api/organizations/migrate-status)"
+      "Bash(curl -X POST http://localhost:3000/api/organizations/migrate-status)",
+      "Bash(npm install @google/generative-ai --legacy-peer-deps)",
+      "Bash(npm install @google/generative-ai)",
+      "Bash(npm install @google/generative-ai --force)",
+      "Bash(findstr /i \"\\.md$\")",
+      "Bash(npm install --save-dev @types/jsonwebtoken --legacy-peer-deps)",
+      "Bash(cat package.json)",
+      "Bash(del \"BACKEND_IMPLEMENTATION_SUMMARY.md\" \"BACKEND_SETUP.md\" \"FRONTEND_AUTH_IMPLEMENTATION.md\" \"LOGIN_UPDATE_SUMMARY.md\" \"MULTI_ORG_MIGRATION_GUIDE.md\" \"ORGANIZATION_BACKEND_INTEGRATION.md\" \"QUICK_START.md\" \"install-backend-deps.bat\" \"install-deps-simple.bat\")"
     ],
     "deny": [],
     "ask": []

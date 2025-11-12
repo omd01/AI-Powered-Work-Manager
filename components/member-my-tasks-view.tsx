@@ -317,7 +317,7 @@ export default function MemberMyTasksView() {
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-medium text-foreground text-sm leading-tight">{task.title}</h4>
                             {task.isAIAssigned && (
-                              <Sparkles className="w-3 h-3 text-purple-500 flex-shrink-0" title="AI Assigned" />
+                              <Sparkles className="w-3 h-3 text-purple-500 flex-shrink-0" />
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>

@@ -41,11 +41,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid project lead" }, { status: 400 })
     }
 
-    // Promote lead to "Lead" role if they're currently a "Member"
-    if (lead.role === "Member") {
-      lead.role = "Lead"
-      await lead.save()
+    // Promote lead to "Lead" role in THIS organization if they're currently a "Member"
+    // Initialize organizations array if it doesn't exist
+    if (!lead.organizations) {
+      lead.organizations = []
     }
+
+    const orgIndex = lead.organizations.findIndex(
+      (org: any) => org.organizationId.toString() === user.organizationId?.toString(),
+    )
+
+    if (orgIndex !== -1) {
+      // Update role in organizations array if currently Member
+      if (lead.organizations[orgIndex].role === "Member") {
+        lead.organizations[orgIndex].role = "Lead"
+     
+      }
+    }
+
+    // Update global role if this is their current organization
+    if (lead.currentOrganizationId?.toString() === user.organizationId?.toString() && lead.role === "Member") {
+      lead.role = "Lead"
+    }
+
+    await lead.save()
 
     // Create new project (use database organizationId, not JWT)
     const newProject = new Project({
@@ -117,10 +136,24 @@ export async function GET(request: NextRequest) {
       .sort({ createdAt: -1 })
       .lean()
 
-    // For each project, get task count
+    // For each project, get task statistics and calculate progress
     const projectsWithDetails = await Promise.all(
       projects.map(async (project: any) => {
-        const taskCount = await Task.countDocuments({ projectId: project._id })
+        const totalTasks = await Task.countDocuments({ projectId: project._id })
+        const completedTasks = await Task.countDocuments({ projectId: project._id, status: "Done" })
+
+        // Calculate progress based on completed tasks
+        const calculatedProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+
+        // Determine project status based on tasks
+        let projectStatus = project.status
+        if (totalTasks === 0) {
+          projectStatus = "Not Started"
+        } else if (completedTasks === totalTasks && totalTasks > 0 && project.status !== "Closed") {
+          projectStatus = "Completed"
+        } else if (completedTasks > 0 && completedTasks < totalTasks) {
+          projectStatus = "In Progress"
+        }
 
         return {
           id: project._id.toString(),
@@ -131,12 +164,14 @@ export async function GET(request: NextRequest) {
           leadId: project.leadId?._id?.toString() || "",
           members: project.memberIds?.length || 0,
           memberIds: project.memberIds?.map((m: any) => m._id?.toString() || m.toString()) || [],
-          status: project.status,
+          status: projectStatus,
           priority: project.priority,
-          progress: project.progress || 0,
-          tasks: taskCount,
+          progress: calculatedProgress,
+          tasks: totalTasks,
+          completedTasks: completedTasks,
           dueDate: project.endDate ? new Date(project.endDate).toISOString().split("T")[0] : "",
           startDate: project.startDate ? new Date(project.startDate).toISOString().split("T")[0] : "",
+          closedAt: project.closedAt ? new Date(project.closedAt).toISOString() : null,
         }
       }),
     )

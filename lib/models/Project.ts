@@ -8,11 +8,13 @@ export interface IProject extends Document {
   createdById: mongoose.Types.ObjectId
   leadId: mongoose.Types.ObjectId
   memberIds: mongoose.Types.ObjectId[]
-  status: "Not Started" | "Planning" | "In Progress" | "Completed" | "On Hold"
+  status: "Not Started" | "Planning" | "In Progress" | "Completed" | "On Hold" | "Closed"
   priority: "Low" | "Medium" | "High" | "Critical"
   progress: number // 0-100
   startDate?: Date
   endDate?: Date
+  closedAt?: Date
+  closedById?: mongoose.Types.ObjectId
   createdAt: Date
   updatedAt: Date
 }
@@ -52,7 +54,7 @@ const ProjectSchema = new Schema<IProject>(
     }],
     status: {
       type: String,
-      enum: ["Not Started", "Planning", "In Progress", "Completed", "On Hold"],
+      enum: ["Not Started", "Planning", "In Progress", "Completed", "On Hold", "Closed"],
       default: "Not Started",
     },
     priority: {
@@ -72,6 +74,15 @@ const ProjectSchema = new Schema<IProject>(
     },
     endDate: {
       type: Date,
+      default: null,
+    },
+    closedAt: {
+      type: Date,
+      default: null,
+    },
+    closedById: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
       default: null,
     },
   },

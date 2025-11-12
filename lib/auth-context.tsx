@@ -32,18 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check if user is authenticated on mount
   useEffect(() => {
     checkAuth()
-
-    // Set up periodic role check every 60 seconds to detect role changes
-    // This is less frequent to avoid performance issues
-    const roleCheckInterval = setInterval(() => {
-      if (localStorage.getItem("token")) {
-        checkAuth(false) // Don't show loading spinner on periodic checks
-      }
-    }, 60000) // Check every 60 seconds (1 minute)
-
-    return () => {
-      clearInterval(roleCheckInterval)
-    }
+    // Removed automatic role checking to prevent UI reloads
+    // Role changes will be detected on page refresh or navigation
   }, [])
 
   const checkAuth = async (showLoading = true) => {

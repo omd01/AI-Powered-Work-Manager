@@ -98,12 +98,9 @@ export async function POST(request: NextRequest) {
       user.organizationId = organization._id // Keep for backward compatibility
       user.role = "Admin"
 
-      console.log(`[CREATE_ORG] Updating user ${user._id} with organizations array:`, user.organizations)
-      console.log(`[CREATE_ORG] currentOrganizationId: ${user.currentOrganizationId}`)
-
       await user.save()
 
-      console.log(`[CREATE_ORG] User saved successfully`)
+    
     }
 
     // Generate new token with updated role

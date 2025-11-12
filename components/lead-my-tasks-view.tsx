@@ -1,13 +1,25 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Plus, Filter, Search, CheckCircle2, Circle, AlertCircle, ChevronDown, RefreshCw, Trash2 } from "lucide-react"
+import { Plus, Filter, Search, CheckCircle2, Circle, AlertCircle, ChevronDown, RefreshCw, Trash2, Scissors, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useOrganization } from "@/lib/organization-context"
 import { useAuth } from "@/lib/auth-context"
 import CreateTaskModal from "./create-task-modal"
+import DivideTaskModal from "./divide-task-modal"
+import { toast } from "sonner"
 
 interface Task {
   id: string
@@ -20,6 +32,11 @@ interface Task {
   skills: string[]
   project: string
   subtasks: Array<{ id: string; title: string; completed: boolean }>
+  dividedInfo?: {
+    isDivided: boolean
+    subtaskCount: number
+    assignedMembers: string[]
+  }
 }
 
 export default function LeadMyTasksView() {
@@ -34,6 +51,13 @@ export default function LeadMyTasksView() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
+  const [isDivideTaskOpen, setIsDivideTaskOpen] = useState(false)
+  const [selectedTaskForDivide, setSelectedTaskForDivide] = useState<{ id: string; title: string; project: string } | null>(null)
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; taskId: string; taskTitle: string }>({
+    isOpen: false,
+    taskId: "",
+    taskTitle: "",
+  })
 
   // Fetch tasks from API
   const fetchTasks = async () => {
@@ -90,20 +114,28 @@ export default function LeadMyTasksView() {
         setAllTasks((prevTasks) =>
           prevTasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)),
         )
+        toast.success("Task status updated")
       } else {
-        alert(data.error || "Failed to update task status")
+        toast.error(data.error || "Failed to update task status")
       }
     } catch (error) {
-      console.error("Error updating task status:", error)
-      alert("Failed to update task status")
+      toast.error("Failed to update task status")
     }
   }
 
-  // Function to delete task (Admin only)
-  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
-    if (!confirm(`Are you sure you want to delete "${taskTitle}"? This action cannot be undone.`)) {
-      return
+  // Function to copy task description
+  const handleCopyDescription = async (description: string, taskTitle: string) => {
+    try {
+      await navigator.clipboard.writeText(description)
+      toast.success(`Copied description for "${taskTitle}"`)
+    } catch (error) {
+      toast.error("Failed to copy description")
     }
+  }
+
+  // Function to delete task (Admin and Lead)
+  const handleDeleteTask = async () => {
+    const { taskId, taskTitle } = deleteConfirmation
 
     try {
       const token = localStorage.getItem("token")
@@ -120,12 +152,13 @@ export default function LeadMyTasksView() {
       if (data.success) {
         // Remove task from local state
         setAllTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId))
+        toast.success(`Deleted task "${taskTitle}"`)
+        setDeleteConfirmation({ isOpen: false, taskId: "", taskTitle: "" })
       } else {
-        alert(data.error || "Failed to delete task")
+        toast.error(data.error || "Failed to delete task")
       }
     } catch (error) {
-      console.error("Error deleting task:", error)
-      alert("Failed to delete task")
+      toast.error("Failed to delete task")
     }
   }
 
@@ -375,6 +408,12 @@ export default function LeadMyTasksView() {
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-medium text-foreground">{task.title}</h3>
                         {getPriorityIcon(task.priority)}
+                        {task.dividedInfo?.isDivided && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                            <Scissors className="w-3 h-3" />
+                            Divided into {task.dividedInfo.subtaskCount}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-1">{task.description}</p>
                     </div>
@@ -410,6 +449,22 @@ export default function LeadMyTasksView() {
                         </div>
                       </div>
 
+                      {/* Divide Task Button (only for project tasks, not personal) */}
+                      {user?.role === "Lead" && task.project && task.project !== "Personal" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-primary hover:text-primary hover:bg-primary/10"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedTaskForDivide({ id: task.id, title: task.title, project: task.project })
+                            setIsDivideTaskOpen(true)
+                          }}
+                        >
+                          <Scissors className="w-3 h-3" />
+                        </Button>
+                      )}
+
                       {/* Delete Button (Admin and Lead) */}
                       {(user?.role === "Admin" || user?.role === "Lead") && (
                         <Button
@@ -418,7 +473,7 @@ export default function LeadMyTasksView() {
                           className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleDeleteTask(task.id, task.title)
+                            setDeleteConfirmation({ isOpen: true, taskId: task.id, taskTitle: task.title })
                           }}
                         >
                           <Trash2 className="w-3 h-3" />
@@ -488,13 +543,40 @@ export default function LeadMyTasksView() {
                   {expandedTask === task.id && (
                     <div className="pt-3 border-t border-border space-y-2">
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1">Full Description</p>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs font-medium text-muted-foreground">Full Description</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCopyDescription(task.description, task.title)
+                            }}
+                          >
+                            <Copy className="w-3 h-3 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
                         <p className="text-sm text-foreground">{task.description}</p>
                       </div>
                       <div>
                         <p className="text-xs font-medium text-muted-foreground mb-1">Project</p>
                         <p className="text-sm text-foreground">{task.project}</p>
                       </div>
+                      {task.dividedInfo?.isDivided && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Task Division Info</p>
+                          <div className="flex flex-col gap-1">
+                            <p className="text-sm text-foreground">
+                              This task was divided into {task.dividedInfo.subtaskCount} parts
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Assigned to: {task.dividedInfo.assignedMembers.join(", ")}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -517,6 +599,41 @@ export default function LeadMyTasksView() {
           fetchTasks() // Refresh tasks after creating new one
         }}
       />
+
+      {/* Divide Task Modal */}
+      {selectedTaskForDivide && (
+        <DivideTaskModal
+          isOpen={isDivideTaskOpen}
+          onClose={() => {
+            setIsDivideTaskOpen(false)
+            setSelectedTaskForDivide(null)
+          }}
+          taskId={selectedTaskForDivide.id}
+          taskTitle={selectedTaskForDivide.title}
+          projectName={selectedTaskForDivide.project}
+          onSuccess={() => {
+            fetchTasks() // Refresh tasks after dividing
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmation.isOpen} onOpenChange={(open) => !open && setDeleteConfirmation({ isOpen: false, taskId: "", taskTitle: "" })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <span className="font-semibold text-foreground">"{deleteConfirmation.taskTitle}"</span>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTask} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              Delete Task
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

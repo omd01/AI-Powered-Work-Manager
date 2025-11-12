@@ -9,6 +9,7 @@ import OrganizationSwitcher from "@/components/organization-switcher"
 import { OrganizationProvider } from "@/lib/organization-context"
 import MyTasksView from "@/components/my-tasks-view"
 import MyScheduleView from "@/components/my-schedule-view"
+import SkillsView from "@/components/skills-view"
 import CreateProjectModal from "@/components/create-project-modal"
 import AdminAITaskAssignerSleek from "@/components/admin-ai-task-assigner-sleek"
 import TeamSettingsModal from "@/components/team-settings-modal"
@@ -30,7 +31,7 @@ export default function AdminPage() {
 function AdminPageContent() {
   const { user, logout } = useAuth()
   const [currentView, setCurrentView] = useState<
-    "dashboard" | "projects" | "tasks" | "members" | "my-tasks" | "schedule"
+    "dashboard" | "projects" | "tasks" | "members" | "my-tasks" | "schedule" | "skills"
   >("dashboard")
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
@@ -39,7 +40,7 @@ function AdminPageContent() {
   const [isManageTeamOpen, setIsManageTeamOpen] = useState(false)
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0)
 
-  // Check for pending member requests
+  // Check for pending member requests on mount only
   useEffect(() => {
     const checkPendingRequests = async () => {
       try {
@@ -61,9 +62,7 @@ function AdminPageContent() {
     }
 
     checkPendingRequests()
-    // Poll every 30 seconds to reduce server load
-    const interval = setInterval(checkPendingRequests, 30000)
-    return () => clearInterval(interval)
+    // Removed auto-refresh to prevent UI reloads - use refresh button in members view instead
   }, [])
 
   const handleProjectSelect = (projectId: string) => {
@@ -72,7 +71,7 @@ function AdminPageContent() {
   }
 
   const handleViewChange = (
-    view: "dashboard" | "projects" | "tasks" | "members" | "my-tasks" | "schedule",
+    view: "dashboard" | "projects" | "tasks" | "members" | "my-tasks" | "schedule" | "skills",
   ) => {
     setCurrentView(view)
   }
@@ -142,6 +141,16 @@ function AdminPageContent() {
             >
               My Schedule
             </button>
+            <button
+              onClick={() => handleViewChange("skills")}
+              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                currentView === "skills"
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/20"
+              }`}
+            >
+              My Skills
+            </button>
           </div>
 
           <div className="mt-auto p-4 border-t border-sidebar-border space-y-2">
@@ -178,6 +187,7 @@ function AdminPageContent() {
           )}
           {currentView === "my-tasks" && <MyTasksView />}
           {currentView === "schedule" && <MyScheduleView />}
+          {currentView === "skills" && <SkillsView />}
           {currentView === "projects" && <ProjectsView onProjectSelect={handleProjectSelect} />}
           {currentView === "tasks" && selectedProject && (
             <AdminTasksView projectId={selectedProject} onOpenManageTeam={() => setIsManageTeamOpen(true)} />

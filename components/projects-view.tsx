@@ -19,6 +19,7 @@ interface Project {
   status: string
   progress: number
   tasks: number
+  completedTasks?: number
   dueDate: string
   priority: string
 }
@@ -208,11 +209,16 @@ export default function ProjectsView({ onProjectSelect }: ProjectsViewProps) {
                 </span>
               </div>
 
-              {/* Task Count */}
+              {/* Task Count and Status */}
               <div className="pt-2 border-t border-border">
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">{project.tasks}</span> tasks
-                </p>
+                {project.tasks > 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">{project.completedTasks || 0}</span> of{" "}
+                    <span className="font-medium text-foreground">{project.tasks}</span> tasks completed
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No tasks yet</p>
+                )}
               </div>
             </CardContent>
           </Card>

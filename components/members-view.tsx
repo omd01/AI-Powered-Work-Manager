@@ -5,6 +5,7 @@ import { Users, ChevronDown, Trash2, Clock, CheckCircle, XCircle, RefreshCw, Und
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useOrganization } from "@/lib/organization-context"
+import { useAuth } from "@/lib/auth-context"
 
 interface PendingMember {
   id: string
@@ -31,6 +32,7 @@ interface MembersViewProps {
 
 export default function MembersView({ onViewChange }: MembersViewProps) {
   const { currentOrganization, members: orgMembers, isLoading: orgLoading, refreshOrganization } = useOrganization()
+  const { user } = useAuth()
   const [members, setMembers] = useState<Member[]>([])
   const [isLoadingMembers, setIsLoadingMembers] = useState(true)
   const [selectedRole, setSelectedRole] = useState<Record<string, boolean>>({})
@@ -57,7 +59,7 @@ export default function MembersView({ onViewChange }: MembersViewProps) {
         setMembers(data.members)
       } else {
         // Fallback to organization context members if API returns empty or fails
-        console.log("Falling back to organization context members")
+        
         setMembers(
           orgMembers.map((m) => ({
             ...m,
@@ -116,13 +118,7 @@ export default function MembersView({ onViewChange }: MembersViewProps) {
   useEffect(() => {
     fetchMembers()
     fetchPendingRequests()
-    // Refresh every 30 seconds to reduce server load
-    const interval = setInterval(() => {
-      fetchMembers()
-      fetchPendingRequests()
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [currentOrganization, orgMembers])
+  }, [currentOrganization])
 
   const handleApprove = async (pendingMember: PendingMember) => {
     try {
@@ -409,38 +405,47 @@ export default function MembersView({ onViewChange }: MembersViewProps) {
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-muted-foreground">Role:</span>
                     <div className="relative flex items-center gap-2">
-                      <button
-                        onClick={() => setSelectedRole((prev) => ({ ...prev, [member.id]: !prev[member.id] }))}
-                        className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${getRoleColor(member.role)}`}
-                      >
-                        {member.role}
-                        <ChevronDown className="w-3 h-3" />
-                      </button>
+                      {/* Check if this is the current user (admin cannot change own role) */}
+                      {user?.email === member.email ? (
+                        <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${getRoleColor(member.role)}`}>
+                          {member.role} (You)
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setSelectedRole((prev) => ({ ...prev, [member.id]: !prev[member.id] }))}
+                            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${getRoleColor(member.role)}`}
+                          >
+                            {member.role}
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
 
-                      {/* Revert Button */}
-                      {member.previousRole && member.previousRole !== member.role && (
-                        <button
-                          onClick={() => handleRevertRole(member)}
-                          className="p-1 rounded hover:bg-muted transition-colors"
-                          title={`Revert to ${member.previousRole}`}
-                        >
-                          <Undo2 className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-                        </button>
-                      )}
-
-                      {/* Dropdown Menu */}
-                      {selectedRole[member.id] && (
-                        <div className="absolute top-full mt-1 left-0 bg-background border border-border rounded-lg shadow-lg z-10 min-w-[120px]">
-                          {(["Admin", "Lead", "Member"] as const).map((role) => (
+                          {/* Revert Button */}
+                          {member.previousRole && member.previousRole !== member.role && (
                             <button
-                              key={role}
-                              onClick={() => handleRoleChange(member.id, role)}
-                              className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${member.role === role ? "bg-muted font-medium" : ""}`}
+                              onClick={() => handleRevertRole(member)}
+                              className="p-1 rounded hover:bg-muted transition-colors"
+                              title={`Revert to ${member.previousRole}`}
                             >
-                              {role}
+                              <Undo2 className="w-3 h-3 text-muted-foreground hover:text-foreground" />
                             </button>
-                          ))}
-                        </div>
+                          )}
+
+                          {/* Dropdown Menu - Only Admin and Member, no Lead */}
+                          {selectedRole[member.id] && (
+                            <div className="absolute top-full mt-1 left-0 bg-background border border-border rounded-lg shadow-lg z-10 min-w-[120px]">
+                              {(["Admin", "Member"] as const).map((role) => (
+                                <button
+                                  key={role}
+                                  onClick={() => handleRoleChange(member.id, role)}
+                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${member.role === role ? "bg-muted font-medium" : ""}`}
+                                >
+                                  {role}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

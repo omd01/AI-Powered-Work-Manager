@@ -123,7 +123,7 @@ TaskSchema.pre("save", function (next) {
     if (this.status === "Done" && !this.completedAt) {
       this.completedAt = new Date()
     } else if (this.status !== "Done") {
-      this.completedAt = null
+      this.completedAt = undefined
     }
   }
   next()

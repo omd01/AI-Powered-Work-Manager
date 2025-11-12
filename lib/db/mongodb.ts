@@ -1,9 +1,13 @@
 import mongoose from "mongoose"
+import { validateEnvironmentVariables } from "@/lib/utils/validate-env"
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/work-management"
+// Validate environment variables on first import
+validateEnvironmentVariables()
+
+const MONGODB_URI = process.env.MONGODB_URI!
 
 if (!MONGODB_URI) {
-  throw new Error("Please define the MONGODB_URI environment variable inside .env.local")
+  throw new Error("MONGODB_URI environment variable is not set. This should have been caught by validation.")
 }
 
 /**

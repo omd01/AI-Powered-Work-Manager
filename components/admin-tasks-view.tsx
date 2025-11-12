@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, AlertCircle, Search, RefreshCw, Trash2, UserCog, X, Users, UserCheck } from "lucide-react"
+import { ArrowLeft, AlertCircle, Search, RefreshCw, Trash2, UserCog, X, Users, UserCheck, Lock, XCircle, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,6 +59,8 @@ export default function AdminTasksView({ projectId, onOpenManageTeam }: AdminTas
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [selectedNewAssignee, setSelectedNewAssignee] = useState("")
   const [isReassigning, setIsReassigning] = useState(false)
+  const [isClosingProject, setIsClosingProject] = useState(false)
+  const [isDeletingProject, setIsDeletingProject] = useState(false)
 
   // Fetch project details and tasks
   const fetchProjectDetails = async () => {
@@ -94,6 +96,17 @@ export default function AdminTasksView({ projectId, onOpenManageTeam }: AdminTas
   useEffect(() => {
     fetchProjectDetails()
   }, [projectId, user])
+
+  // Function to copy task description
+  const handleCopyDescription = async (description: string, taskTitle: string) => {
+    try {
+      await navigator.clipboard.writeText(description)
+      alert(`Copied description for "${taskTitle}"`)
+    } catch (error) {
+      console.error("Error copying to clipboard:", error)
+      alert("Failed to copy description")
+    }
+  }
 
   // Function to delete task (Admin only)
   const handleDeleteTask = async (taskId: string, taskTitle: string) => {
@@ -233,6 +246,92 @@ export default function AdminTasksView({ projectId, onOpenManageTeam }: AdminTas
     }
   }
 
+  // Close project (Lead only - all tasks must be done)
+  const handleCloseProject = async () => {
+    if (!project || !user) return
+
+    const incompleteTasks = allTasks.filter((t) => t.status !== "Done").length
+    if (incompleteTasks > 0) {
+      alert(`Cannot close project. ${incompleteTasks} task(s) are still incomplete. Please complete all tasks first.`)
+      return
+    }
+
+    if (totalTasks === 0) {
+      alert("Cannot close project with no tasks. Add tasks first.")
+      return
+    }
+
+    if (!confirm(`Are you sure you want to close "${project.name}"? This project will be marked as closed and only admins can delete it.`)) {
+      return
+    }
+
+    try {
+      setIsClosingProject(true)
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/projects/${projectId}/close`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert("Project closed successfully!")
+        await fetchProjectDetails() // Refresh project data
+      } else {
+        alert(data.error || "Failed to close project")
+      }
+    } catch (error) {
+      console.error("Error closing project:", error)
+      alert("Failed to close project")
+    } finally {
+      setIsClosingProject(false)
+    }
+  }
+
+  // Delete project (Admin only - project must be closed first)
+  const handleDeleteProject = async () => {
+    if (!project || !user) return
+
+    if (project.status !== "Closed") {
+      alert(`Project must be closed by the lead before it can be deleted. Current status: ${project.status}`)
+      return
+    }
+
+    if (!confirm(`Are you sure you want to permanently delete "${project.name}"? This action cannot be undone. All tasks will also be deleted.`)) {
+      return
+    }
+
+    try {
+      setIsDeletingProject(true)
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/projects/${projectId}/delete`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert(`Project deleted successfully! ${data.deletedTasks} task(s) were also deleted.`)
+        router.push("/admin") // Navigate back to admin dashboard
+      } else {
+        alert(data.error || "Failed to delete project")
+      }
+    } catch (error) {
+      console.error("Error deleting project:", error)
+      alert("Failed to delete project")
+    } finally {
+      setIsDeletingProject(false)
+    }
+  }
+
   const totalTasks = allTasks.length
   const completedTasks = allTasks.filter((t) => t.status === "Done").length
   const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
@@ -330,6 +429,32 @@ export default function AdminTasksView({ projectId, onOpenManageTeam }: AdminTas
                 Change Lead
               </Button>
             )}
+            {/* Close Project Button - Lead only (when all tasks done) */}
+            {(user?.role === "Lead" || user?.role === "Admin") && project.leadId === user?.id && project.status !== "Closed" && completedTasks === totalTasks && totalTasks > 0 && (
+              <Button
+                onClick={handleCloseProject}
+                variant="outline"
+                size="sm"
+                disabled={isClosingProject}
+                className="border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+              >
+                <Lock className="w-4 h-4 mr-2" />
+                {isClosingProject ? "Closing..." : "Close Project"}
+              </Button>
+            )}
+            {/* Delete Project Button - Admin only (when project is closed) */}
+            {user?.role === "Admin" && project.status === "Closed" && (
+              <Button
+                onClick={handleDeleteProject}
+                variant="outline"
+                size="sm"
+                disabled={isDeletingProject}
+                className="border-destructive text-destructive hover:bg-destructive/10"
+              >
+                <XCircle className="w-4 h-4 mr-2" />
+                {isDeletingProject ? "Deleting..." : "Delete Project"}
+              </Button>
+            )}
             <Button onClick={fetchProjectDetails} variant="outline" size="sm">
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
@@ -396,6 +521,15 @@ export default function AdminTasksView({ projectId, onOpenManageTeam }: AdminTas
                     {(user?.role === "Admin" || user?.role === "Lead") && (
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-primary hover:text-primary hover:bg-primary/10"
+                            onClick={() => handleCopyDescription(task.description, task.title)}
+                            title="Copy description"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

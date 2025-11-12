@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateUser } from "@/lib/middleware/auth"
 import Task from "@/lib/models/Task"
+import User from "@/lib/models/User"
 import connectDB from "@/lib/db/mongodb"
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -13,9 +14,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
+    // Get current user's organizationId from database (not JWT)
+    const currentUser = await User.findById(auth.user.userId).select("currentOrganizationId organizationId")
+    const orgId = currentUser?.currentOrganizationId || currentUser?.organizationId
+
+    if (!orgId) {
+      return NextResponse.json({ success: false, error: "User not in an organization" }, { status: 400 })
+    }
+
     const { id } = await params
     const body = await request.json()
     const { status } = body
+
+    
 
     // Validate status
     const validStatuses = ["Todo", "Planning", "In Progress", "Done", "Blocked"]
@@ -33,7 +44,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // User can update if they are assigned to it or if they are in the same organization
     if (
       task.assignedToId.toString() !== auth.user.userId &&
-      task.organizationId.toString() !== auth.user.organizationId
+      task.organizationId.toString() !== orgId.toString()
     ) {
       return NextResponse.json({ success: false, error: "Unauthorized to update this task" }, { status: 403 })
     }

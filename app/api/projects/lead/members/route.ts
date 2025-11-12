@@ -14,9 +14,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    // Fetch projects where the current user is the lead
+    // Get current user's organizationId from database (not JWT)
+    const currentUser = await User.findById(auth.user.userId).select("currentOrganizationId organizationId")
+    const orgId = currentUser?.currentOrganizationId || currentUser?.organizationId
+
+    if (!orgId) {
+      return NextResponse.json({ success: false, error: "User not in an organization" }, { status: 400 })
+    }
+
+  
+    // Fetch projects where the current user is the lead in the current organization
     const projects = await Project.find({
-      organizationId: auth.user.organizationId,
+      organizationId: orgId,
       leadId: auth.user.userId,
     })
       .select("memberIds name")

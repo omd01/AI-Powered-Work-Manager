@@ -29,16 +29,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ success: false, error: "Task not found" }, { status: 404 })
     }
 
+    // Get current user's organizationId from database (not JWT)
+    const currentUser = await User.findById(auth.user.userId).select("currentOrganizationId organizationId organizations")
+    const orgId = currentUser?.currentOrganizationId || currentUser?.organizationId
+
+    if (!currentUser || !orgId) {
+      return NextResponse.json({ success: false, error: "User not in an organization" }, { status: 400 })
+    }
+
+    
     // Find the project
     const project = await Project.findById(task.projectId)
     if (!project) {
       return NextResponse.json({ success: false, error: "Project not found" }, { status: 404 })
     }
 
-    // Check if user is the lead of this project or Admin
-    const currentUser = await User.findById(auth.user.userId)
+    // Check if user is the lead of this project or Admin in THIS organization
     const isProjectLead = project.leadId?.toString() === auth.user.userId
-    const isAdmin = currentUser?.role === "Admin"
+
+    const userOrgMembership = currentUser.organizations?.find(
+      (org: any) => org.organizationId.toString() === orgId.toString()
+    )
+    const isAdmin = userOrgMembership?.role === "Admin"
 
     if (!isProjectLead && !isAdmin) {
       return NextResponse.json(
@@ -48,13 +60,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     // Check if new assignee exists
-    const newAssignee = await User.findById(newAssigneeId)
+    const newAssignee = await User.findById(newAssigneeId).select("name email organizations")
     if (!newAssignee) {
       return NextResponse.json({ success: false, error: "New assignee not found" }, { status: 404 })
     }
 
-    // Check if new assignee is in the same organization
-    if (newAssignee.organizationId?.toString() !== auth.user.organizationId) {
+    // Check if new assignee is in the same organization (check organizations array)
+    const newAssigneeInOrg = newAssignee.organizations?.find(
+      (org: any) => org.organizationId.toString() === orgId.toString()
+    )
+
+    if (!newAssigneeInOrg) {
       return NextResponse.json({ success: false, error: "New assignee not in your organization" }, { status: 403 })
     }
 

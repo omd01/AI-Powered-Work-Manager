@@ -127,8 +127,8 @@ export default function WaitingApprovalPage() {
     // Check immediately
     checkApprovalStatus()
 
-    // Then check every 3 seconds
-    const checkInterval = setInterval(checkApprovalStatus, 3000)
+    // Then check every 30 seconds (reduced from 3s to prevent UI reloads)
+    const checkInterval = setInterval(checkApprovalStatus, 30000)
 
     return () => clearInterval(checkInterval)
   }, [router, authLoading, isAuthenticated, authUser, refreshUser])

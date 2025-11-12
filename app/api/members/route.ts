@@ -14,25 +14,54 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get current user's organizationId from database (not JWT)
-    const currentUser = await User.findById(auth.user.userId).select("organizationId")
-    if (!currentUser || !currentUser.organizationId) {
+    // Get current user's currentOrganizationId from database (not JWT)
+    const currentUser = await User.findById(auth.user.userId).select("currentOrganizationId organizationId")
+
+    if (!currentUser) {
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 })
+    }
+
+    const orgId = currentUser.currentOrganizationId || currentUser.organizationId
+
+    if (!orgId) {
       return NextResponse.json({ success: false, error: "User not in an organization" }, { status: 400 })
     }
 
-    // Fetch all users in the same organization
+    
+
+    // Fetch all users who have this organization in their organizations array
     const users = await User.find({
-      organizationId: currentUser.organizationId,
+      "organizations.organizationId": orgId,
     })
-      .select("name email role skills")
+      .select("name email role skills organizations")
       .lean()
 
-    // For each user, fetch their projects
+
+    // Filter and map users to get their role in THIS specific organization
+    const membersInOrg = users
+      .map((user: any) => {
+        // Find the user's membership in THIS organization
+        const orgMembership = user.organizations?.find(
+          (org: any) => org.organizationId.toString() === orgId.toString(),
+        )
+
+        if (!orgMembership) return null
+
+        return {
+          ...user,
+          role: orgMembership.role, // Use role from this specific organization
+        }
+      })
+      .filter((user) => user !== null) as any[]
+
+    
+
+    // For each user, fetch their projects in THIS organization
     const usersWithProjects = await Promise.all(
-      users.map(async (user: any) => {
-        // Find projects where user is a member or lead
+      membersInOrg.map(async (user: any) => {
+        // Find projects where user is a member or lead in THIS organization
         const projects = await Project.find({
-          organizationId: currentUser.organizationId,
+          organizationId: orgId,
           $or: [{ leadId: user._id }, { memberIds: user._id }],
         })
           .select("name")
@@ -42,7 +71,7 @@ export async function GET(request: NextRequest) {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
-          role: user.role,
+          role: user.role, // This is already the role in THIS organization
           skills: user.skills || [],
           projects: projects.map((p: any) => p.name),
         }

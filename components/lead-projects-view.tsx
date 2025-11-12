@@ -20,6 +20,7 @@ interface Project {
   status: string
   progress: number
   tasks: number
+  completedTasks?: number
   dueDate: string
   priority: string
 }
@@ -178,7 +179,13 @@ export default function LeadProjectsView({ onProjectSelect }: LeadProjectsViewPr
                 </div>
                 <div>
                   <p className="text-muted-foreground">Tasks</p>
-                  <p className="font-medium text-foreground">{project.tasks}</p>
+                  {project.tasks > 0 ? (
+                    <p className="font-medium text-foreground">
+                      {project.completedTasks || 0}/{project.tasks}
+                    </p>
+                  ) : (
+                    <p className="font-medium text-muted-foreground italic">None yet</p>
+                  )}
                 </div>
               </div>
 

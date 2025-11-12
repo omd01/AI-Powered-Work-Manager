@@ -259,7 +259,7 @@ export default function ManageProjectTeamModal({
                       <span className={`text-xs px-2 py-1 rounded-md font-medium ${getRoleBadgeColor(projectCreator.role)}`}>
                         {projectCreator.role}
                       </span>
-                      <Shield className="w-4 h-4 text-muted-foreground/50" title="Protected" />
+                      <Shield className="w-4 h-4 text-muted-foreground/50" />
                     </div>
                   </div>
                 )}
@@ -283,7 +283,7 @@ export default function ManageProjectTeamModal({
                       <span className={`text-xs px-2 py-1 rounded-md font-medium ${getRoleBadgeColor("Lead")}`}>
                         Lead
                       </span>
-                      <Shield className="w-4 h-4 text-muted-foreground/50" title="Protected" />
+                      <Shield className="w-4 h-4 text-muted-foreground/50" />
                     </div>
                   </div>
                 )}
@@ -345,7 +345,7 @@ export default function ManageProjectTeamModal({
                             </Button>
                           ) : (
                             <div className="h-8 w-8 flex items-center justify-center">
-                              <Shield className="w-4 h-4 text-muted-foreground/50" title="Protected role" />
+                              <Shield className="w-4 h-4 text-muted-foreground/50" />
                             </div>
                           )}
                         </div>

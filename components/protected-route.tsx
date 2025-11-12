@@ -25,7 +25,7 @@ export default function ProtectedRoute({ children, allowedRoles, requireOrganiza
       // Check if user role is allowed
       if (allowedRoles && !allowedRoles.includes(user.role)) {
         // Redirect based on actual role
-        console.log(`Role mismatch detected. User role: ${user.role}, Allowed roles:`, allowedRoles)
+        
         if (user.role === "Admin") {
           router.push("/admin")
         } else if (user.role === "Lead") {
