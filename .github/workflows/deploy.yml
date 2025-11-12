@@ -49,10 +49,10 @@ jobs:
       - name: TypeScript type check
         run: pnpm build
         env:
-          # Dummy env vars for build
+          # Dummy env vars for build (using proper format to pass validation)
           MONGODB_URI: mongodb://localhost:27017/test
-          JWT_SECRET: test-secret-key-for-build-only-min-32-chars-long
-          GEMINI_API_KEY: test-api-key
+          JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          GEMINI_API_KEY: AIzaSyABCDEF123456789_test_key_for_build_only
           NODE_ENV: production
 
   deploy:
