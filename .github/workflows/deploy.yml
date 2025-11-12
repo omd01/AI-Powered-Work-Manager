@@ -92,9 +92,9 @@ jobs:
             git fetch origin
             git reset --hard origin/main
 
-            # Install dependencies
+            # Install dependencies (including devDependencies needed for build)
             echo "📦 Installing dependencies..."
-            pnpm install --no-frozen-lockfile --prod
+            pnpm install --no-frozen-lockfile
 
             # Update environment variables
             echo "🔐 Updating environment variables..."
@@ -167,8 +167,8 @@ jobs:
             # Reset to previous commit
             git reset --hard HEAD~1
 
-            # Reinstall dependencies
-            pnpm install --no-frozen-lockfile --prod
+            # Reinstall dependencies (including devDependencies needed for build)
+            pnpm install --no-frozen-lockfile
 
             # Rebuild
             pnpm build
