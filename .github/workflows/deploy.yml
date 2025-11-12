@@ -131,7 +131,7 @@ jobs:
             echo "🎉 Deployment completed at $(date)"
 
       - name: Notify deployment status
-        if: always()
+        if: always() && secrets.SLACK_WEBHOOK != ''
         uses: 8398a7/action-slack@v3
         with:
           status: ${{ job.status }}
@@ -139,7 +139,6 @@ jobs:
             Deployment to EC2 ${{ job.status }}
             Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
         continue-on-error: true
