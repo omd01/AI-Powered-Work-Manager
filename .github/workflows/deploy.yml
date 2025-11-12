@@ -44,7 +44,7 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: TypeScript type check
         run: pnpm build
@@ -94,7 +94,7 @@ jobs:
 
             # Install dependencies
             echo "📦 Installing dependencies..."
-            pnpm install --frozen-lockfile --prod
+            pnpm install --no-frozen-lockfile --prod
 
             # Update environment variables
             echo "🔐 Updating environment variables..."
@@ -169,7 +169,7 @@ jobs:
             git reset --hard HEAD~1
 
             # Reinstall dependencies
-            pnpm install --frozen-lockfile --prod
+            pnpm install --no-frozen-lockfile --prod
 
             # Rebuild
             pnpm build

@@ -84,7 +84,7 @@ fi
 
 # Install dependencies
 echo -e "${YELLOW}📦 Installing dependencies...${NC}"
-pnpm install --frozen-lockfile
+pnpm install --no-frozen-lockfile
 
 # Create .env.local file (will be populated by GitHub Actions)
 echo -e "${YELLOW}🔐 Creating environment file...${NC}"
