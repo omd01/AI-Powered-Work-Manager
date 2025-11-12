@@ -21,6 +21,8 @@ A modern, full-stack AI powered Work Manager application built with Next.js 16, 
 - **Responsive Design** - Mobile-friendly interface with Tailwind CSS
 - **Modern UI Components** - Built with Radix UI and shadcn/ui
 - **MongoDB Integration** - Robust data persistence with Mongoose ODM
+- **CI/CD Pipeline** - Automated deployment with GitHub Actions to AWS EC2
+- **Zero-Downtime Deployment** - PM2 cluster mode with automatic rollback on failure
 
 ## Tech Stack
 
@@ -35,7 +37,7 @@ A modern, full-stack AI powered Work Manager application built with Next.js 16, 
 
 ## Prerequisites
 
-- **Node.js** 18.x or higher
+- **Node.js** 20.x or higher (required for Next.js 16)
 - **MongoDB** (Local installation or MongoDB Atlas account)
 - **pnpm** (or npm/yarn)
 - **Google Gemini API Key** (for AI features)
@@ -140,32 +142,62 @@ The application will be available at http://localhost:3000
 
 ## Production Deployment
 
-### Environment Variables
+### CI/CD with GitHub Actions (Recommended)
+
+Automated deployment to AWS EC2 with zero-downtime updates:
+
+**Quick Start**: [docs/QUICK-START-CICD.md](docs/QUICK-START-CICD.md)
+**Full Guide**: [docs/CI-CD-SETUP.md](docs/CI-CD-SETUP.md)
+
+**Features:**
+- ✅ Automated testing on every push
+- ✅ Automated deployment to AWS EC2
+- ✅ Zero-downtime deployments with PM2
+- ✅ Automatic rollback on failure
+- ✅ SSL certificate management
+- ✅ Nginx reverse proxy with rate limiting
+
+**Setup time**: ~30 minutes
+
+```bash
+# 1. Launch EC2 instance (Ubuntu 22.04, t2.medium)
+# 2. Run setup script
+scp -i your-key.pem scripts/setup-ec2.sh ubuntu@EC2_IP:~/
+ssh -i your-key.pem ubuntu@EC2_IP "./setup-ec2.sh"
+
+# 3. Configure GitHub Secrets (see docs)
+# 4. Push to main branch → Automatic deployment!
+```
+
+### Manual Deployment
+
+#### Environment Variables
 
 Ensure all required environment variables are set:
 - `MONGODB_URI` - Your production MongoDB connection string
 - `JWT_SECRET` - A secure, randomly generated secret (min 32 characters)
 - `GEMINI_API_KEY` - Your Google Gemini API key
 - `NODE_ENV` - Set to `production`
+- `NEXT_PUBLIC_API_URL` - Your production URL
 
 The application includes automatic environment variable validation that will prevent startup if required variables are missing or insecure.
 
-### Build for Production
+#### Build for Production
 
 ```bash
 pnpm build
 pnpm start
 ```
 
-### Deployment Platforms
+#### Other Deployment Platforms
 
-**Vercel (Recommended)**
+**Vercel**
 1. Push your code to GitHub
 2. Import project in Vercel
 3. Add environment variables in Vercel dashboard
 4. Deploy
 
-**Other Platforms**
+**Railway / Render / Other**
 - Ensure Node.js 18+ is available
 - Set all environment variables
 - Run `npm run build` and `npm start`
